@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="CraveCorner inbox — direct messaging between customers and local cooks.">
+<title>Inbox — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages + Stage 4 -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+<link rel="stylesheet" href="assets/css/stage4.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div id="s4-inbox-root" aria-live="polite"></div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<!-- Stage 4: Supabase client + shared order/messaging/notification logic -->
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/cc-orders.js"></script>
+<script src="assets/js/cc-messages.js"></script>
+<script src="assets/js/cc-notify.js"></script>
+<script>
+/* ==========================================================================
+   Stage 4 — inbox.html: private buyer <-> seller messaging.
+   Mobile: conversation list -> full-screen chat. Desktop: two-panel.
+   ?conv=<id> opens a thread; ?shop=<id> starts one; ?order=<id> opens the
+   order's thread. No in-app checkout ever — payment stays off-platform.
+   ========================================================================== */
+(function () {
+  'use strict';
+  if (!window.CC) return;
+  var CC = window.CC;
+  /* The bottom-nav "Inbox" tab is keyed 'messages' (it links messages.html,
+     which redirects here) — highlight it while on this page. */
+  window.CC_ACTIVE_NAV = 'messages';
+
+  function esc(s) { return CC.esc(s); }
+  var params = new URLSearchParams(window.location.search);
+
+  window.CC_PAGE_INIT = function () {
+    var root = document.getElementById('s4-inbox-root');
+    root.innerHTML = '<div class="cc-loading" role="status">Loading inbox…</div>';
+    CC.ready.then(function (r) {
+      if (!r.live || !CC.sb) { demoState(root); return; }
+      if (!r.user) { signedOutState(root); return; }
+      bootLive(root, r.user);
+    }).catch(function (e) {
+      root.innerHTML = CC.states.error({ title: 'Could not load inbox', body: String((e && e.message) || e) });
+    });
+  };
+
+  function demoState(root) {
+    root.innerHTML =
+      '<div class="s4-page-head"><h1 class="cc-h2">Inbox</h1></div>' +
+      CC.states.empty({
+        icon: 'message',
+        title: 'Messages need the live marketplace',
+        body: 'This preview isn\u2019t connected to the CraveCorner backend yet. When it is, this inbox becomes your direct line to local cooks — order chats, quote cards, and photo attachments, all in one thread.'
+      }) +
+      '<p class="cc-caption" style="margin-top:1rem">' + CC.icon('shield') +
+      ' <span>CraveCorner never runs in-app checkout — payment is always arranged directly with the seller.</span></p>';
+  }
+
+  function signedOutState(root) {
+    root.innerHTML =
+      '<div class="s4-page-head"><h1 class="cc-h2">Inbox</h1></div>' +
+      CC.states.empty({ icon: 'user', title: 'Sign in to see your messages',
+        body: 'Messaging needs a free CraveCorner account.',
+        actionLabel: 'Sign in / Sign up',
+        actionHref: 'auth.html?next=' + encodeURIComponent('inbox.html') });
+  }
+
+  /* ---------------- live inbox ---------------- */
+
+  function bootLive(root, user) {
+    var state = {
+      user: user, convs: [], names: {}, lastMsg: {}, unread: {},
+      activeId: null, activeConv: null, messages: [], unsub: null,
+      pendingFiles: []
+    };
+    root.innerHTML =
+      '<div class="s4-page-head"><h1 class="cc-h2 s4-grow">Inbox</h1>' +
+      '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" id="s4-new-msg">' + CC.icon('plus') + 'New message</button></div>' +
+      '<div class="s4-inbox">' +
+        '<div class="s4-conv-list" aria-label="Conversations"><div class="s4-conv-items" id="s4-conv-items">' +
+          '<div class="cc-loading" role="status">Loading conversations…</div>' +
+        '</div></div>' +
+        '<div class="s4-chat" id="s4-chat"></div>' +
+      '</div>';
+    root.querySelector('#s4-new-msg').addEventListener('click', function () {
+      CC.pickShop(function (shop) {
+        if (!shop) return;
+        CC.ensureConversation(shop.id, null).then(function (c) {
+          openConversation(root, state, c.id, true);
+        }).catch(function (e) {
+          CC.s4Honest('Could not start conversation', '<p>' + esc(e.message) + '</p>');
+        });
+      });
+    });
+
+    /* Deep links: ?order= -> the order's thread; ?shop= -> shop thread. */
+    var orderParam = params.get('order'), shopParam = params.get('shop'), convParam = params.get('conv');
+    var startP = Promise.resolve(null);
+    if (orderParam) {
+      startP = CC.sb.from('cc_order_requests').select('id, shop_id').eq('id', orderParam).maybeSingle()
+        .then(function (r) {
+          if (!r.data) throw new Error('Order not found.');
+          return CC.ensureConversation(r.data.shop_id, r.data.id);
+        }).then(function (c) { return c.id; });
+    } else if (shopParam) {
+      startP = CC.ensureConversation(shopParam, null).then(function (c) { return c.id; });
+    } else if (convParam) {
+      startP = Promise.resolve(convParam);
+    }
+    startP.then(function (targetId) {
+      return refreshList(root, state).then(function () {
+        if (targetId) openConversation(root, state, targetId, true);
+        else renderChatEmpty(root, state);
+      });
+    }).catch(function (e) {
+      refreshList(root, state).then(function () { renderChatEmpty(root, state); });
+      CC.s4Honest('Could not open conversation', '<p>' + esc(e.message) + '</p>');
+    });
+
+    /* Realtime: new messages anywhere refresh the list; the open thread appends. */
+    state.inboxUnsub = CC.subscribeInbox(function (kind, payload) {
+      if (kind === 'message') {
+        var m = payload;
+        if (state.activeId && m.conversation_id === state.activeId) {
+          appendMessage(root, state, m, true);
+        }
+        refreshList(root, state, true);
+      } else {
+        refreshList(root, state, true);
+      }
+    });
+  }
+
+  function refreshList(root, state, quiet) {
+    var itemsBox = root.querySelector('#s4-conv-items');
+    return CC.getConversations().then(function (convs) {
+      state.convs = convs;
+      if (!convs.length) {
+        itemsBox.innerHTML = CC.states.empty({ icon: 'message', title: 'No conversations yet',
+          body: 'Message a seller from any listing or order, and the thread shows up here.' });
+        return;
+      }
+      var ids = convs.map(function (c) { return c.id; });
+      /* One query for recent messages: preview + unread counts. */
+      return CC.sb.from('cc_messages').select('id, conversation_id, sender_id, body, created_at')
+        .in('conversation_id', ids).order('created_at', { ascending: false }).limit(400)
+        .then(function (mr) {
+          var msgs = mr.error ? [] : (mr.data || []);
+          var byConv = {};
+          msgs.forEach(function (m) {
+            (byConv[m.conversation_id] = byConv[m.conversation_id] || []).push(m);
+          });
+          var needNames = [];
+          convs.forEach(function (c) {
+            var list = byConv[c.id] || [];
+            state.lastMsg[c.id] = list[0] || null;
+            state.unread[c.id] = CC.unreadIn(c.id, list);
+            var party = CC.otherParty(c);
+            if (party.kind === 'shop' && !state.names['s:' + c.shop_id]) needNames.push(c);
+            if (party.kind === 'buyer' && !state.names['u:' + party.id]) needNames.push(c);
+          });
+          return resolveNames(state, needNames).then(function () {
+            paintList(root, state, itemsBox);
+          });
+        });
+    }).catch(function () {
+      if (!quiet) itemsBox.innerHTML = CC.states.error({ title: 'Could not load conversations' });
+    });
+  }
+
+  function resolveNames(state, convs) {
+    var jobs = convs.map(function (c) {
+      var party = CC.otherParty(c);
+      if (party.kind === 'shop') {
+        return CC.getShopForConv(c).then(function (s) {
+          state.names['s:' + c.shop_id] = (s && s.name) || 'Seller';
+        });
+      }
+      return CC.getDisplayName(party.id).then(function (n) {
+        state.names['u:' + party.id] = n || 'Customer';
+      });
+    });
+    return Promise.all(jobs);
+  }
+
+  function partyName(state, conv) {
+    var party = CC.otherParty(conv);
+    return party.kind === 'shop' ? (state.names['s:' + conv.shop_id] || 'Seller')
+                                : (state.names['u:' + party.id] || 'Customer');
+  }
+
+  function relTime(iso) {
+    return (typeof CC.relativeTime === 'function' ? CC.relativeTime(iso) : '') || '';
+  }
+
+  function paintList(root, state, itemsBox) {
+    itemsBox.innerHTML = state.convs.map(function (c) {
+      var name = partyName(state, c);
+      var lm = state.lastMsg[c.id];
+      var preview = lm ? (lm.sender_id === state.user.id ? 'You: ' : '') + lm.body : 'No messages yet';
+      var unread = state.unread[c.id] || 0;
+      var initial = (name || '?').charAt(0).toUpperCase();
+      return '<button type="button" class="s4-conv' + (c.id === state.activeId ? ' is-active' : '') + '" data-conv="' + esc(c.id) + '">' +
+        '<span class="s4-conv-avatar" aria-hidden="true">' + esc(initial) + '</span>' +
+        '<span class="s4-conv-body"><span class="s4-conv-name">' + esc(name) +
+          (c.order_request_id ? ' <span class="cc-badge cc-badge-info s4-chip">Order</span>' : '') + '</span>' +
+        '<span class="s4-conv-preview">' + esc(preview) + '</span></span>' +
+        '<span style="display:flex;flex-direction:column;align-items:flex-end;gap:.3rem">' +
+          '<span class="s4-conv-time">' + esc(lm ? relTime(lm.created_at) : '') + '</span>' +
+          (unread ? '<span class="s4-unread-dot">' + unread + '</span>' : '') +
+        '</span></button>';
+    }).join('');
+    Array.prototype.forEach.call(itemsBox.querySelectorAll('[data-conv]'), function (btn) {
+      btn.addEventListener('click', function () { openConversation(root, state, btn.getAttribute('data-conv'), true); });
+    });
+  }
+
+  /* ---------------- open thread ---------------- */
+
+  function renderChatEmpty(root, state) {
+    var chat = root.querySelector('#s4-chat');
+    document.body.classList.remove('s4-chat-open');
+    chat.innerHTML = '<div style="margin:auto;max-width:340px;padding:2rem 1rem">' +
+      CC.states.empty({ icon: 'message', title: 'Pick a conversation',
+        body: 'Choose a thread to read and reply — quotes and order updates land here too.' }) + '</div>';
+  }
+
+  function openConversation(root, state, convId, push) {
+    var chat = root.querySelector('#s4-chat');
+    chat.innerHTML = '<div class="cc-loading" role="status" style="margin:auto">Loading messages…</div>';
+    if (state.unsub) { try { state.unsub(); } catch (e) {} state.unsub = null; }
+    CC.getConversation(convId).then(function (conv) {
+      if (!conv) throw new Error('Conversation not found.');
+      state.activeId = conv.id;
+      state.activeConv = conv;
+      state.messages = [];
+      state.pendingFiles = [];
+      return Promise.all([
+        conv,
+        CC.getMessages(conv.id, 80),
+        (function () {
+          var party = CC.otherParty(conv);
+          return party.kind === 'shop'
+            ? CC.getShopForConv(conv).then(function (s) { return (s && s.name) || 'Seller'; })
+            : CC.getDisplayName(party.id).then(function (n) { return n || 'Customer'; });
+        })()
+      ]);
+    }).then(function (all) {
+      var conv = all[0], messages = all[1], name = all[2];
+      state.messages = messages;
+      paintChat(root, state, conv, name);
+      paintMessages(root, state, true);
+      CC.enrichMessageCards(chat);
+      /* Mark read (device-local; read_at is not client-writable per RLS). */
+      var last = messages[messages.length - 1];
+      if (last) CC.msgMarkRead(conv.id, last.created_at);
+      state.unread[conv.id] = 0;
+      var itemsBox = root.querySelector('#s4-conv-items');
+      if (itemsBox) paintList(root, state, itemsBox);
+      state.unsub = CC.subscribeConversation(conv.id, function (m) {
+        appendMessage(root, state, m, false);
+      });
+      if (push) {
+        try {
+          var url = new URL(window.location.href);
+          url.searchParams.set('conv', conv.id);
+          window.history.replaceState(null, '', url.toString());
+        } catch (e) {}
+      }
+      document.body.classList.add('s4-chat-open');
+    }).catch(function (e) {
+      state.activeId = null;
+      renderChatEmpty(root, state);
+      CC.s4Honest('Could not open conversation', '<p>' + esc(e.message) + '</p>');
+    });
+  }
+
+  function paintChat(root, state, conv, name) {
+    var chat = root.querySelector('#s4-chat');
+    var iAmBuyer = conv.buyer_id === state.user.id;
+    var sub = conv.order_request_id ? 'About your order' : (iAmBuyer ? 'Seller' : 'Customer');
+    var blockedByMe = CC.iBlocked(conv);
+    var blockedBanner = CC.blockLabel(conv);
+    chat.innerHTML =
+      '<div class="s4-chat-head">' +
+        '<button type="button" class="s4-back" id="s4-chat-back" aria-label="Back to conversations"><span aria-hidden="true">‹</span></button>' +
+        '<div class="s4-chat-title"><strong>' + esc(name) + '</strong><span>' + esc(sub) + '</span></div>' +
+        '<div class="s4-chat-menu">' +
+          '<button type="button" class="s4-iconbtn" id="s4-chat-kebab" aria-label="Conversation options" aria-expanded="false">' + CC.icon('settings') + '</button>' +
+          '<div class="s4-chat-menu-panel" id="s4-chat-panel" hidden>' +
+            (conv.order_request_id ? '<button type="button" data-menu="order">' + CC.icon('clipboard') + 'View order</button>' : '') +
+            '<button type="button" data-menu="block">' + CC.icon('shield') + (blockedByMe ? 'Unblock' : 'Block') + '</button>' +
+            '<button type="button" data-menu="report" class="is-danger">' + CC.icon('warning') + 'Report user</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="s4-messages" id="s4-messages" role="log" aria-label="Messages"></div>' +
+      (blockedByMe
+        ? '<div class="s4-blocked-banner">' + CC.icon('shield') + '<div>You blocked this conversation. <button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" id="s4-unblock" style="min-height:32px">Unblock</button></div></div>'
+        : blockedBanner
+        ? '<div class="s4-blocked-banner">' + CC.icon('shield') + '<div>' + esc(blockedBanner) + '</div></div>'
+        : '') +
+      (CC.canISend(conv) ? composerHtml() : '');
+
+    chat.querySelector('#s4-chat-back').addEventListener('click', function () {
+      document.body.classList.remove('s4-chat-open');
+      state.activeId = null;
+      if (state.unsub) { try { state.unsub(); } catch (e) {} state.unsub = null; }
+      try {
+        var url = new URL(window.location.href);
+        url.searchParams.delete('conv');
+        window.history.replaceState(null, '', url.toString());
+      } catch (e) {}
+      renderChatEmpty(root, state);
+      var itemsBox = root.querySelector('#s4-conv-items');
+      if (itemsBox) paintList(root, state, itemsBox);
+    });
+
+    var kebab = chat.querySelector('#s4-chat-kebab');
+    var panel = chat.querySelector('#s4-chat-panel');
+    kebab.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var open = panel.hidden;
+      panel.hidden = !open;
+      kebab.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', function h(e) {
+      if (!panel.hidden && !e.target.closest('.s4-chat-menu')) {
+        panel.hidden = true;
+        kebab.setAttribute('aria-expanded', 'false');
+      }
+    });
+    Array.prototype.forEach.call(panel.querySelectorAll('[data-menu]'), function (btn) {
+      btn.addEventListener('click', function () {
+        panel.hidden = true;
+        menuAction(root, state, conv, btn.getAttribute('data-menu'));
+      });
+    });
+    var unblock = chat.querySelector('#s4-unblock');
+    if (unblock) unblock.addEventListener('click', function () {
+      CC.setBlock(conv, false).then(function (c2) {
+        state.activeConv = c2;
+        openConversation(root, state, c2.id, false);
+        refreshList(root, state, true);
+      }).catch(function (e) {
+        CC.s4Honest('Could not unblock', '<p>' + esc(e.message) + '</p>');
+      });
+    });
+    wireComposer(root, state, conv);
+  }
+
+  function menuAction(root, state, conv, what) {
+    var party = CC.otherParty(conv);
+    if (what === 'order' && conv.order_request_id) {
+      window.location.href = 'orders.html?id=' + encodeURIComponent(conv.order_request_id);
+    } else if (what === 'block') {
+      var blocking = !CC.iBlocked(conv);
+      var m = CC.s4Modal(blocking ? 'Block this conversation?' : 'Unblock this conversation?',
+        '<p>' + esc(blocking
+          ? 'They won\u2019t be able to send you new messages, but both of you can still read the history.'
+          : 'They\u2019ll be able to message you again.') + '</p>' +
+        '<div class="cc-modal-actions"><button type="button" class="cc-btn cc-btn-ghost" data-s4-close>Cancel</button>' +
+        '<button type="button" class="cc-btn ' + (blocking ? 'cc-btn-danger' : 'cc-btn-primary') + '" id="s4-b-yes">' +
+        (blocking ? 'Block' : 'Unblock') + '</button></div>');
+      m.el.querySelector('#s4-b-yes').addEventListener('click', function (e) {
+        e.target.disabled = true;
+        CC.setBlock(conv, blocking).then(function (c2) {
+          m.close();
+          state.activeConv = c2;
+          openConversation(root, state, c2.id, false);
+          refreshList(root, state, true);
+        }).catch(function (err) {
+          m.close();
+          CC.s4Honest('Could not update block', '<p>' + esc(err.message) + '</p>');
+        });
+      });
+    } else if (what === 'report') {
+      CC.reportUser(party.id, conv.id);
+    }
+  }
+
+  function composerHtml() {
+    return '<div class="s4-composer"><div class="s4-pending-thumbs" id="s4-pending" hidden></div>' +
+      '<div class="s4-composer-row">' +
+        '<button type="button" class="s4-iconbtn" id="s4-attach" aria-label="Attach photos">' + CC.icon('upload') + '</button>' +
+        '<input type="file" id="s4-file" accept="image/*" multiple hidden>' +
+        '<textarea id="s4-text" rows="1" maxlength="4000" placeholder="Write a message…" aria-label="Write a message"></textarea>' +
+        '<button type="button" class="s4-iconbtn s4-sendbtn" id="s4-send" aria-label="Send message">' + CC.icon('message') + '</button>' +
+      '</div>' +
+      '<p class="cc-caption" style="margin:.4rem 0 0">Up to 4 photos, 5 MB each. Never share payment details here — CraveCorner has no checkout.</p></div>';
+  }
+
+  function wireComposer(root, state, conv) {
+    var chat = root.querySelector('#s4-chat');
+    var text = chat.querySelector('#s4-text');
+    var sendBtn = chat.querySelector('#s4-send');
+    if (!text || !sendBtn) return; // blocked: no composer
+    var fileInput = chat.querySelector('#s4-file');
+    var pendingBox = chat.querySelector('#s4-pending');
+
+    text.addEventListener('input', function () {
+      text.style.height = 'auto';
+      text.style.height = Math.min(text.scrollHeight, 120) + 'px';
+    });
+    text.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
+    });
+    chat.querySelector('#s4-attach').addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function () {
+      var files = Array.prototype.slice.call(fileInput.files || []);
+      fileInput.value = '';
+      if (!files.length) return;
+      if (state.pendingFiles.length + files.length > 4) {
+        CC.s4Honest('Too many photos', '<p>Attach up to 4 photos per message.</p>');
+        return;
+      }
+      files.forEach(function (f) {
+        if (f.size > 5 * 1024 * 1024) {
+          CC.s4Honest('Photo too large', '<p>Each photo must be under 5 MB.</p>');
+          return;
+        }
+        state.pendingFiles.push(f);
+      });
+      paintPending();
+    });
+    function paintPending() {
+      pendingBox.hidden = !state.pendingFiles.length;
+      pendingBox.innerHTML = '';
+      state.pendingFiles.forEach(function (f, ix) {
+        var url = URL.createObjectURL(f);
+        var wrap = document.createElement('span');
+        wrap.className = 's4-pending-thumb';
+        wrap.innerHTML = '<img src="' + url + '" alt="Photo to send">' +
+          '<button type="button" aria-label="Remove photo">×</button>';
+        wrap.querySelector('button').addEventListener('click', function () {
+          URL.revokeObjectURL(url);
+          state.pendingFiles.splice(ix, 1);
+          paintPending();
+        });
+        pendingBox.appendChild(wrap);
+      });
+    }
+    function doSend() {
+      var body = text.value.trim();
+      if (!body && !state.pendingFiles.length) return;
+      sendBtn.disabled = true;
+      var files = state.pendingFiles.slice();
+      CC.uploadMessageImages(files).then(function (paths) {
+        return CC.sendMessage(conv.id, { body: body, attachments: paths });
+      }).then(function (m) {
+        text.value = '';
+        text.style.height = 'auto';
+        state.pendingFiles.forEach(function () {});
+        state.pendingFiles = [];
+        paintPending();
+        sendBtn.disabled = false;
+        appendMessage(root, state, m, true);
+        CC.msgMarkRead(conv.id, m.created_at);
+        text.focus();
+      }).catch(function (e) {
+        sendBtn.disabled = false;
+        // Blocked mid-send (or any RLS refusal): surface the plain-English error.
+        CC.s4Honest('Message not sent', '<p>' + esc(e.message) + '</p>');
+      });
+    }
+    sendBtn.addEventListener('click', doSend);
+  }
+
+  /* ---------------- message rendering ---------------- */
+
+  function messageHtml(state, m) {
+    var own = m.sender_id === state.user.id;
+    var atts = (m.attachments || []).map(function (p) {
+      var url = CC.imgUrl('cc-message-images', p);
+      return '<a href="' + esc(url) + '" target="_blank" rel="noopener"><img src="' + esc(url) +
+        '" alt="Attached photo" loading="lazy"></a>';
+    }).join('');
+    return '<div class="s4-msg ' + (own ? 'is-own' : 'is-their') + '" data-msg="' + esc(m.id) + '">' +
+      '<div class="s4-bubble">' + esc(m.body) + '</div>' +
+      (atts ? '<div class="s4-attach-row">' + atts + '</div>' : '') +
+      (m.card_type && m.card_type !== 'none' ? CC.messageCardHtml(m) : '') +
+      '<span class="s4-msg-time">' + esc(CC.formatMsgTime(m.created_at)) + '</span>' +
+    '</div>';
+  }
+
+  function paintMessages(root, state, scroll) {
+    var box = root.querySelector('#s4-messages');
+    if (!box) return;
+    var html = '', lastDay = null;
+    state.messages.forEach(function (m) {
+      var day = CC.dayLabel(m.created_at);
+      if (day !== lastDay) { html += '<div class="s4-day">' + esc(day) + '</div>'; lastDay = day; }
+      html += messageHtml(state, m);
+    });
+    box.innerHTML = html;
+    if (scroll) box.scrollTop = box.scrollHeight;
+  }
+
+  function appendMessage(root, state, m, mine) {
+    if (!state.activeId || m.conversation_id !== state.activeId) return;
+    var exists = state.messages.some(function (x) { return x.id === m.id; });
+    if (exists) return;
+    state.messages.push(m);
+    state.messages.sort(function (a, b) { return a.created_at < b.created_at ? -1 : 1; });
+    var box = root.querySelector('#s4-messages');
+    if (!box) return;
+    /* Simple approach: re-render (message counts are small; keeps day dividers right). */
+    paintMessages(root, state, true);
+    CC.enrichMessageCards(box);
+    if (!mine && m.sender_id !== state.user.id) {
+      CC.msgMarkRead(state.activeId, m.created_at);
+    }
+    var itemsBox = root.querySelector('#s4-conv-items');
+    if (itemsBox && state.convs.length) {
+      state.lastMsg[m.conversation_id] = m;
+      paintList(root, state, itemsBox);
+    }
+  }
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

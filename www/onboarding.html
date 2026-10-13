@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="Open your CraveCorner shop — a 6-step guided setup for home food sellers.">
+<title>Become a seller — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  /* Onboarding wizard chrome — built from design-system tokens only. */
+  .ob-steps { list-style: none; padding: 0; margin: 0 0 var(--cc-space-5); display: flex; gap: var(--cc-space-1); }
+  .ob-steps li { flex: 1; min-width: 0; }
+  .ob-step-btn {
+    width: 100%; display: flex; flex-direction: column; align-items: center; gap: var(--cc-space-1);
+    background: none; border: none; cursor: pointer; padding: var(--cc-space-2) var(--cc-space-1);
+    border-radius: var(--cc-radius-md); min-height: 44px;
+  }
+  .ob-step-btn:focus-visible { outline: 3px solid rgba(211,49,92,.35); outline-offset: 2px; }
+  .ob-dot {
+    width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: var(--cc-pink-50); color: var(--cc-cocoa-soft); font-weight: 700; font-size: var(--cc-text-sm);
+    border: 2px solid transparent; flex: none;
+  }
+  .ob-dot svg { width: 16px; height: 16px; }
+  .ob-step-btn[aria-current="step"] .ob-dot { background: var(--cc-pink-deep); color: #fff; }
+  .ob-step-btn[data-done="true"] .ob-dot { background: var(--cc-mint); color: var(--cc-cocoa); }
+  .ob-step-label { font-size: var(--cc-text-xs); font-weight: 600; color: var(--cc-cocoa-soft); text-align: center; line-height: 1.2; }
+  .ob-step-btn[aria-current="step"] .ob-step-label { color: var(--cc-cocoa); }
+  .ob-bar { height: 6px; border-radius: 999px; background: var(--cc-pink-50); overflow: hidden; margin-bottom: var(--cc-space-5); }
+  .ob-bar-fill { height: 100%; background: var(--cc-pink-deep); border-radius: 999px; transition: width .3s ease; }
+  .ob-nav { display: flex; gap: var(--cc-space-3); margin-top: var(--cc-space-6); flex-wrap: wrap; }
+  .ob-nav .cc-btn { flex: 1 1 auto; }
+  .ob-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--cc-space-3); margin: var(--cc-space-3) 0; }
+  .ob-photo { position: relative; border-radius: var(--cc-radius-md); overflow: hidden; border: 2px solid var(--cc-border); aspect-ratio: 1; background: var(--cc-pink-50); }
+  .ob-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ob-photo[data-cover="true"] { border-color: var(--cc-pink-deep); }
+  .ob-photo-tools { position: absolute; inset: auto 0 0 0; display: flex; gap: 2px; padding: 4px; background: rgba(52,43,50,.72); }
+  .ob-photo-tools button {
+    flex: 1; border: none; background: rgba(255,255,255,.16); color: #fff; border-radius: 6px;
+    font-size: 11px; font-weight: 700; padding: 6px 2px; cursor: pointer; min-height: 32px;
+  }
+  .ob-photo-tools button:focus-visible { outline: 2px solid #fff; }
+  .ob-cover-tag {
+    position: absolute; top: 4px; left: 4px; background: var(--cc-pink-deep); color: #fff;
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  }
+  .ob-ai-tag {
+    position: absolute; top: 4px; right: 4px; background: var(--cc-mango); color: var(--cc-cocoa);
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  }
+  .ob-accent-row { display: flex; gap: var(--cc-space-2); flex-wrap: wrap; }
+  .ob-accent {
+    width: 48px; height: 48px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; padding: 0;
+  }
+  .ob-accent[aria-pressed="true"] { border-color: var(--cc-cocoa); box-shadow: 0 0 0 3px rgba(52,43,50,.2); }
+  .ob-accent:focus-visible { outline: 3px solid rgba(211,49,92,.35); outline-offset: 2px; }
+  .ob-hours-row { display: flex; align-items: center; gap: var(--cc-space-2); margin-bottom: var(--cc-space-2); flex-wrap: wrap; }
+  .ob-hours-row .cc-check { margin: 0; min-width: 64px; }
+  .ob-hours-row input[type="time"] { min-height: 44px; }
+  .ob-option-card { border: 1.5px solid var(--cc-border); border-radius: var(--cc-radius-md); padding: var(--cc-space-4); margin-bottom: var(--cc-space-3); }
+  .ob-choice-row { display: flex; gap: var(--cc-space-2); margin-bottom: var(--cc-space-2); }
+  .ob-choice-row .cc-input:first-child { flex: 2; }
+  .ob-choice-row .cc-input:last-of-type { flex: 1; }
+  .ob-check-item { border: 1.5px solid var(--cc-border); border-radius: var(--cc-radius-md); padding: var(--cc-space-3) var(--cc-space-4); margin-bottom: var(--cc-space-2); }
+  .ob-check-item .cc-check { margin: 0; }
+  @media (prefers-reduced-motion: reduce) { .ob-bar-fill { transition: none; } }
+</style>
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div class="cc-section" style="max-width: 720px; margin: 0 auto;">
+      <div id="pg-ob-root">
+        <div class="cc-card"><p class="cc-muted">Loading…</p></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/cc-auth.js"></script>
+<script src="assets/js/cc-products.js"></script>
+<script src="assets/js/cc-onboarding.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+(function () {
+  'use strict';
+  window.CC_ACTIVE_NAV = 'create';
+  if (window.CC && window.CC.Onboarding) {
+    window.CC.Onboarding.boot(document.getElementById('pg-ob-root'));
+  } else {
+    document.getElementById('pg-ob-root').innerHTML =
+      '<div class="cc-alert cc-alert-danger" role="alert">CraveCorner could not load. Check your connection and reload the page.</div>';
+  }
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

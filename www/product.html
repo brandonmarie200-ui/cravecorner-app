@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="View a homemade food listing on CraveCorner — sample listing for design review.">
+<title>Listing — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages + Stage 4 (order modal styles) -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+<!-- Stage 5: live reviews + save/share/report actions (additive — no earlier styles changed) -->
+<link rel="stylesheet" href="assets/css/cc-stage5.css">
+<link rel="stylesheet" href="assets/css/stage4.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+
+<!-- ============================================================
+     STAGE 3 (Food Availability) — page-scoped styles for the
+     "Available dates" section. Design system untouched.
+     ============================================================ -->
+<style>
+.cc-avail-wrap { margin-top: var(--cc-space-5); }
+.cc-avail-title { display: flex; align-items: center; gap: var(--cc-space-2); }
+.cc-avail-title svg { width: 20px; height: 20px; }
+.cc-avail-list { list-style: none; margin: var(--cc-space-3) 0; padding: 0;
+  display: flex; flex-direction: column; gap: var(--cc-space-2); }
+.cc-avail-row { border: 1px solid var(--cc-border); border-radius: var(--cc-radius-lg);
+  background: var(--cc-white); padding: var(--cc-space-3); display: flex; flex-wrap: wrap;
+  gap: var(--cc-space-2); align-items: center; }
+.cc-avail-date { flex: 1 1 140px; display: flex; flex-direction: column; }
+.cc-avail-meta { display: flex; flex-direction: column; gap: var(--cc-space-1); align-items: flex-start; }
+.cc-avail-countdown { display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--cc-text-sm); font-weight: 600; color: var(--cc-mint-ink); }
+.cc-avail-countdown svg { width: 16px; height: 16px; }
+.cc-avail-countdown.is-passed { color: var(--cc-cocoa-mute); }
+.cc-avail-shipnote { display: flex; gap: var(--cc-space-1); flex-basis: 100%; margin: var(--cc-space-1) 0 0; }
+.cc-avail-shipnote svg { width: 14px; height: 14px; flex: none; margin-top: 2px; }
+.cc-avail-note { display: flex; gap: var(--cc-space-2); align-items: flex-start;
+  background: var(--cc-lilac-50); border: 1px solid var(--cc-lilac-200);
+  border-radius: var(--cc-radius-lg); padding: var(--cc-space-3); }
+.cc-avail-note svg { width: 18px; height: 18px; flex: none; margin-top: 2px; }
+.cc-avail-loading { display: flex; flex-direction: column; gap: var(--cc-space-2); }
+.cc-avail-soldout { text-align: center; padding: var(--cc-space-4) 0; }
+.cc-menu-chip { display: inline-flex; align-items: center; gap: 4px; }
+.cc-menu-chip svg { width: 14px; height: 14px; }
+</style>
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div class="pg-head">
+      <a class="pg-back" href="explore.html" id="pg-back"><span data-icon="search" aria-hidden="true"></span>Back to Explore</a>
+    </div>
+    <div id="pg-product"></div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<!-- ============================================================
+     STAGE 3 (Food Availability) — page extension. The live backend
+     scripts (supabase + cc.js boot probe) are required for real
+     availability dates; cc-menu.js / cc-availability.js power the
+     "Available dates" section appended below. Design system untouched.
+     ============================================================ -->
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="js/data/demo.js"></script>
+<script src="assets/js/app.js"></script>
+<!-- Stage 5: shared live helpers + reviews (appended; no-ops when not live) -->
+<script src="assets/js/cc-community.js"></script>
+<script src="assets/js/cc-reviews.js"></script>
+<script src="assets/js/cc-menu.js"></script>
+<script src="assets/js/cc-availability.js"></script>
+<!-- STAGE 4 (Ordering) — page extension: CC.openOrderRequest(productId,
+     occurrenceId), called by the "Request Order" button handler below.
+     Design system untouched. -->
+<script src="assets/js/cc-orders.js"></script>
+<!-- STAGE 4: notification bell badge + dropdown (hooks the header; app.js untouched) -->
+<script src="assets/js/cc-notify.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var main = document.getElementById('cc-main');
+  function fatal(msg) {
+    main.innerHTML = '<div class="cc-container cc-section"><div class="cc-alert cc-alert-danger" role="alert">' + msg + '</div></div>';
+  }
+  if (!window.CC || !window.CC_DEMO) {
+    fatal('CraveCorner could not load. Check your connection and reload the page.');
+    return;
+  }
+  var CC = window.CC;
+  var D = window.CC_DEMO;
+
+  /* Shared chrome (header/footer/demo banner) is rendered by
+     assets/js/app.js on DOMContentLoaded — set the active nav
+     before that fires. */
+  window.CC_ACTIVE_NAV = 'explore';
+
+  /* Hydrate static [data-icon] slots (back link, etc.) before anything else */
+  var bootSlots = document.querySelectorAll('[data-icon]');
+  for (var bs = 0; bs < bootSlots.length; bs++) {
+    (function (el) {
+      var tmp = document.createElement('span');
+      tmp.innerHTML = CC.icon(el.getAttribute('data-icon'));
+      if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+    })(bootSlots[bs]);
+  }
+
+  function norm(s) { return String(s == null ? '' : s).toLowerCase(); }
+  function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+  function listify(v) {
+    if (Array.isArray(v)) return v.filter(Boolean);
+    if (typeof v === 'string' && v) return v.split(/[,;]\s*/).filter(Boolean);
+    return [];
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  var id = params.get('id') || '';
+  var p = null, i;
+  var products = D.PRODUCTS || [];
+  for (i = 0; i < products.length; i++) {
+    if (String(products[i].id) === id) { p = products[i]; break; }
+  }
+
+  var slot = document.getElementById('pg-product');
+  if (!p) {
+    document.title = 'Listing not found — CraveCorner';
+    slot.innerHTML = CC.states.error({
+      title: 'Listing not found',
+      body: 'That listing is not in the preview — the link may be outdated.',
+      retryLabel: 'Reload page'
+    }) + '<div class="cc-empty-actions"><a class="cc-btn cc-btn-secondary" href="explore.html">Explore all food</a></div>';
+    return;
+  }
+
+  document.title = p.name + ' — CraveCorner';
+
+  var shop = null;
+  var shops = D.SHOPS || [];
+  for (i = 0; i < shops.length; i++) {
+    if (String(shops[i].id) === String(p.shopId)) { shop = shops[i]; break; }
+  }
+
+  var badge = norm(p.badge);
+  /* Sold-out path: a "soldout" badge renders the disabled state. The ?soldout=1
+     preview flag lets design review see the state on any sample listing. */
+  var soldOut = /sold\s*-?\s*out/.test(badge) || params.get('soldout') === '1';
+  var readyToday = !soldOut && /(ready|today)/.test(badge);
+  var madeToOrder = !soldOut && !readyToday && /(made|pre-?\s?order|to order)/.test(badge);
+
+  function availBadge() {
+    if (soldOut) return '<span class="cc-badge cc-badge-soldout">Sold Out</span>';
+    if (readyToday) return '<span class="cc-badge cc-badge-ready">Ready Today</span>';
+    if (madeToOrder) return '<span class="cc-badge cc-badge-info">Made to Order' + (p.leadTime ? ' &middot; ' + CC.esc(p.leadTime) : '') + '</span>';
+    if (p.badge) return '<span class="cc-badge cc-badge-info">' + CC.esc(p.badge) + '</span>';
+    return '';
+  }
+  var newBadge = (!soldOut && /new/.test(badge)) ? '<span class="cc-badge cc-badge-new">New</span>' : '';
+
+  /* Gallery: product photo + up to 2 photos from related listings in the same category */
+  var gallery = [p.img], seen = {};
+  seen[norm(p.img)] = true;
+  for (i = 0; i < products.length && gallery.length < 3; i++) {
+    var o = products[i];
+    if (o.id !== p.id && norm(o.category) === norm(p.category) && o.img && !seen[norm(o.img)]) {
+      seen[norm(o.img)] = true;
+      gallery.push(o.img);
+    }
+  }
+  var cat = null;
+  var cats = D.CATEGORIES || [];
+  for (i = 0; i < cats.length; i++) {
+    if (norm(cats[i].slug) === norm(p.category) || norm(cats[i].name) === norm(p.category)) { cat = cats[i]; break; }
+  }
+  if (gallery.length < 3 && cat && cat.img && !seen[norm(cat.img)]) { gallery.push(cat.img); seen[norm(cat.img)] = true; }
+  while (gallery.length < 3) gallery.push('placeholder-food.jpg');
+
+  var thumbsHtml = '';
+  for (i = 0; i < gallery.length; i++) {
+    thumbsHtml += '<button type="button" class="pg-thumb" data-thumb="' + i + '"' +
+      ' aria-current="' + (i === 0 ? 'true' : 'false') + '"' +
+      ' aria-label="View photo ' + (i + 1) + ' of ' + gallery.length + '">' +
+      '<img src="' + CC.img(gallery[i]) + '" alt=""></button>';
+  }
+
+  var ingredients = listify(p.ingredients);
+  var allergens = listify(p.allergens);
+  var fulfill = listify(p.fulfillment);
+
+  var detailRows = '';
+  if (p.servings) {
+    detailRows += '<div class="pg-detail-row"><dt>Servings</dt><dd>' + CC.esc(p.servings) + '</dd></div>';
+  }
+  if (ingredients.length) {
+    detailRows += '<div class="pg-detail-row"><dt>Ingredients</dt><dd>' + CC.esc(ingredients.join(', ')) + '</dd></div>';
+  }
+  if (allergens.length) {
+    detailRows += '<div class="pg-detail-row"><dt>Allergens</dt><dd><span class="pg-chip-row">' +
+      allergens.map(function (a) { return '<span class="cc-badge cc-badge-warn">' + CC.esc(a) + '</span>'; }).join('') +
+      '</span></dd></div>';
+  }
+  if (fulfill.length) {
+    detailRows += '<div class="pg-detail-row"><dt>Fulfillment</dt><dd><span class="pg-chip-row">' +
+      fulfill.map(function (f) { return '<span class="cc-badge cc-badge-info">' + CC.esc(cap(f)) + '</span>'; }).join('') +
+      '</span></dd></div>';
+  }
+  if (p.leadTime && !madeToOrder) {
+    detailRows += '<div class="pg-detail-row"><dt>Lead time</dt><dd>' + CC.esc(p.leadTime) + '</dd></div>';
+  }
+
+  var sellerHtml;
+  if (shop) {
+    sellerHtml =
+      '<button type="button" class="pg-seller" id="pg-seller-btn">' +
+        '<img src="' + CC.img(shop.cover) + '" alt="">' +
+        '<span class="pg-seller-info"><strong>' + CC.esc(shop.name) + '</strong>' +
+        '<span>' + CC.esc(shop.city) + ', ' + CC.esc(shop.state) + '</span></span>' +
+        '<span data-icon="store" aria-hidden="true"></span>' +
+      '</button>';
+  } else {
+    sellerHtml = '';
+  }
+
+  var saved = CC.isSaved('product', p.id);
+
+  slot.innerHTML =
+    '<article class="pg-product">' +
+      '<div>' +
+        '<div class="pg-gallery-main">' +
+          '<img id="pg-main-img" src="' + CC.img(gallery[0]) + '" alt="' + CC.esc(p.name) + '">' +
+          (soldOut ? '<span class="cc-badge cc-badge-soldout">Sold Out</span>' : '') +
+        '</div>' +
+        '<div class="pg-thumbs" role="group" aria-label="Listing photos">' + thumbsHtml + '</div>' +
+      '</div>' +
+      '<div class="pg-product-info">' +
+        '<div class="pg-avail">' + availBadge() + newBadge + '</div>' +
+        '<h1>' + CC.esc(p.name) + '</h1>' +
+        '<div class="pg-price-row"><span class="cc-price">' + CC.formatPrice(p) + '</span></div>' +
+        '<p class="pg-shop-line"><span data-icon="location" aria-hidden="true"></span>' +
+          CC.esc(p.city) + ', ' + CC.esc(p.state) + '</p>' +
+        (p.description ? '<p>' + CC.esc(p.description) + '</p>' : '') +
+        (detailRows ? '<dl class="pg-detail">' + detailRows + '</dl>' : '') +
+        sellerHtml +
+        '<div class="pg-actions">' +
+          '<button type="button" class="cc-btn cc-btn-primary cc-btn-block" id="pg-request"' + (soldOut ? ' disabled' : '') + '>' +
+            (soldOut ? 'Sold Out' : 'Request Order') +
+          '</button>' +
+          '<button type="button" class="pg-icon-action" id="pg-save" aria-pressed="' + (saved ? 'true' : 'false') + '">' +
+            '<span data-icon="heart" aria-hidden="true"></span><span id="pg-save-label">' + (saved ? 'Saved' : 'Save') + '</span>' +
+          '</button>' +
+          '<button type="button" class="pg-icon-action" id="pg-share">' +
+            '<span data-icon="share" aria-hidden="true"></span><span id="pg-share-label">Share</span>' +
+          '</button>' +
+        '</div>' +
+        '<button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" id="pg-report">' +
+          '<span data-icon="warning" aria-hidden="true"></span>Report this listing' +
+        '</button>' +
+        '<p class="cc-caption"><span class="pg-sample-note"><span data-icon="clipboard" aria-hidden="true"></span>Sample listing for design review — not a real business.</span></p>' +
+      '</div>' +
+    '</article>';
+
+  /* Hydrate icon slots inside the freshly rendered markup */
+  var rendered = slot.querySelectorAll('[data-icon]');
+  for (var r = 0; r < rendered.length; r++) {
+    (function (el) {
+      var tmp = document.createElement('span');
+      tmp.innerHTML = CC.icon(el.getAttribute('data-icon'));
+      if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+    })(rendered[r]);
+  }
+  /* Gallery thumbnail switching */
+  var mainImg = document.getElementById('pg-main-img');
+  slot.querySelector('.pg-thumbs').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-thumb]');
+    if (!btn) return;
+    var ix = parseInt(btn.getAttribute('data-thumb'), 10);
+    mainImg.src = CC.img(gallery[ix]);
+    var thumbs = slot.querySelectorAll('[data-thumb]'), t;
+    for (t = 0; t < thumbs.length; t++) thumbs[t].setAttribute('aria-current', thumbs[t] === btn ? 'true' : 'false');
+  });
+
+  /* Save — real localStorage toggle */
+  var saveBtn = document.getElementById('pg-save');
+  var saveLabel = document.getElementById('pg-save-label');
+  saveBtn.addEventListener('click', function () {
+    var nowSaved = CC.toggleSave('product', p.id);
+    saveBtn.setAttribute('aria-pressed', nowSaved ? 'true' : 'false');
+    saveLabel.textContent = nowSaved ? 'Saved' : 'Save';
+  });
+
+  /* Share — native share sheet with clipboard fallback */
+  var shareBtn = document.getElementById('pg-share');
+  var shareLabel = document.getElementById('pg-share-label');
+  shareBtn.addEventListener('click', function () {
+    function done(label) {
+      shareLabel.textContent = label;
+      window.setTimeout(function () { shareLabel.textContent = 'Share'; }, 2000);
+    }
+    var shareData = { title: p.name + ' — CraveCorner', text: p.description || p.name, url: window.location.href };
+    if (navigator.share) {
+      navigator.share(shareData).catch(function () { /* user dismissed */ });
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(window.location.href).then(function () { done('Link copied'); }, function () { done('Copy failed'); });
+    } else {
+      done('Copy unavailable');
+    }
+  });
+
+  /* Report — demo branch: needs the live marketplace to send */
+  document.getElementById('pg-report').addEventListener('click', function () {
+    CC.honestModal('Reporting needs the live marketplace',
+      '<p>Reports go to CraveCorner admins for review — sending one needs a connection.</p>' +
+      '<p>What you see here is sample content for design review, not a real business.</p>');
+  });
+
+  /* Stage 4 hook: the Request Order button calls CC.openOrderRequest (defined
+     in assets/js/cc-orders.js). The hook handles every state honestly:
+     backend not live -> offline modal; signed out -> sign-in prompt;
+     live + signed in -> the real order request modal
+     (options, quantity, slot/date, fulfillment, note -> cc_order_requests).
+     No in-app checkout ever — payment is arranged directly with the seller. */
+  var reqBtn = document.getElementById('pg-request');
+  if (!soldOut) {
+    reqBtn.addEventListener('click', function () {
+      if (window.CC && typeof CC.openOrderRequest === 'function') {
+        CC.openOrderRequest(p.id, null);
+      } else {
+        CC.honestModal('Ordering is unavailable',
+          '<p>Order requests could not load right now. CraveCorner has no in-app checkout ever — payment is arranged directly with the seller using their accepted methods.</p>');
+      }
+    });
+  }
+
+  /* Seller card — demo branch: shop pages need the live marketplace */
+  var sellerBtn = document.getElementById('pg-seller-btn');
+  if (sellerBtn) {
+    sellerBtn.addEventListener('click', function () {
+      CC.honestModal('Shop pages need the live marketplace',
+        '<p>Full shop pages — with menus, hours, and reviews — need a connection to CraveCorner.</p>' +
+        '<p>This is a sample listing for design review, not a real business.</p>');
+    });
+  }
+})();
+</script>
+
+<!-- ============================================================
+     STAGE 3 (Food Availability) — customer-facing availability.
+     Appends an "Available dates" section below the listing detail:
+       - Live mode (real backend): the ?id= is a product UUID. The Stage 1
+         demo detail can't resolve it, so this renders a compact LIVE
+         product header (real name/price/shop/fulfillment from
+         cc_products + cc_shops_public) followed by real upcoming dates
+         from cc_occurrences (active, future, quantity left), each with
+         pickup window, order-cutoff countdown ("order within 3h 12m"),
+         quantity left, and sold-out states. Per-date Preorder buttons
+         call CC.openOrderRequest(productId, occurrenceId) — the Stage 4
+         hook. Until Stage 4 implements it, the Stage 3 fallback shows an
+         honest "Ordering opens with Stage 4" modal. Nothing is faked.
+       - Demo mode (no backend): the Stage 1 sample listing is left
+         untouched; the section shows an honest note that live dates
+         appear once the backend is connected.
+     ============================================================ -->
+<script>
+(function () {
+  'use strict';
+  if (!window.CC || !window.CC_AVAIL || !window.CC_MENU) return;
+  var CC = window.CC, AV = window.CC_AVAIL, M = window.CC_MENU;
+
+  function hydrateIcons(root) {
+    root.querySelectorAll('[data-icon]').forEach(function (el) {
+      var tmp = document.createElement('span');
+      tmp.innerHTML = CC.icon(el.getAttribute('data-icon'));
+      if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+    });
+  }
+
+  function isUuid(s) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s || ''));
+  }
+
+  function boot() {
+    var slot = document.getElementById('pg-product');
+    if (!slot) return;
+    var params = new URLSearchParams(window.location.search);
+    var id = params.get('id') || '';
+
+    CC.ready.then(function (res) {
+      if (res.live && isUuid(id)) {
+        renderLiveProduct(slot, id);
+        return;
+      }
+      // Demo mode: keep the Stage 1 sample detail exactly as-is; append the
+      // honest availability note below it.
+      var wrap = document.createElement('section');
+      wrap.className = 'cc-avail-wrap';
+      wrap.setAttribute('aria-label', 'Availability');
+      slot.appendChild(wrap);
+      AV.renderAvailability(wrap, id);
+    });
+  }
+
+  /* Live product header + availability (replaces the demo "not found" state). */
+  function renderLiveProduct(slot, productId) {
+    var sb = CC.sb;
+    slot.innerHTML = '<div class="cc-avail-loading" role="status" aria-label="Loading listing">' +
+      '<div class="cc-skeleton" style="height:220px"></div>' +
+      '<div class="cc-skeleton" style="height:22px;width:70%"></div>' +
+      '<div class="cc-skeleton" style="height:16px;width:40%"></div></div>';
+
+    sb.from('cc_products')
+      .select('id,name,description,price_cents,portion,ingredients,allergens,prep_time,fulfillment,lead_time_days,status,shop_id')
+      .eq('id', productId).limit(1).maybeSingle()
+      .then(function (rp) {
+        if (rp.error) throw rp.error;
+        if (!rp.data) throw new Error('Listing not found.');
+        var p = rp.data;
+        return Promise.all([
+          sb.from('cc_shops_public').select('id,name,city,state').eq('id', p.shop_id).limit(1).maybeSingle(),
+          sb.from('cc_product_images').select('storage_path,is_cover,position')
+            .eq('product_id', p.id).order('position').limit(5)
+        ]).then(function (res) {
+          if (res[0].error) throw res[0].error;
+          if (res[1].error) throw res[1].error;
+          return { product: p, shop: res[0].data, images: res[1].data || [] };
+        });
+      })
+      .then(function (ctx) {
+        var p = ctx.product, shop = ctx.shop;
+        if (!shop) throw new Error('This shop isn\u2019t published right now.');
+        document.title = p.name + ' — CraveCorner';
+
+        var gallery = ctx.images.map(function (im) { return CC.imgUrl('cc-product-images', im.storage_path); })
+          .filter(Boolean);
+        if (!gallery.length) gallery = [CC.img('placeholder-food.jpg')];
+        var soldOut = p.status === 'sold_out';
+
+        function chipRow(items, badgeCls) {
+          if (!items.length) return '';
+          return '<span class="pg-chip-row">' + items.map(function (x) {
+            return '<span class="cc-badge ' + badgeCls + '">' + CC.esc(x) + '</span>';
+          }).join('') + '</span>';
+        }
+        var allergens = String(p.allergens || '').split(/[,;]\s*/).filter(Boolean);
+        var fulfill = p.fulfillment || {};
+        var fulfillNames = ['pickup', 'delivery', 'shipping'].filter(function (k) { return fulfill[k]; })
+          .map(function (k) { return k.charAt(0).toUpperCase() + k.slice(1); });
+
+        var detailRows = '';
+        if (p.portion) detailRows += '<div class="pg-detail-row"><dt>Portion</dt><dd>' + CC.esc(p.portion) + '</dd></div>';
+        if (p.ingredients) detailRows += '<div class="pg-detail-row"><dt>Ingredients</dt><dd>' + CC.esc(p.ingredients) + '</dd></div>';
+        if (allergens.length) detailRows += '<div class="pg-detail-row"><dt>Allergens</dt><dd>' + chipRow(allergens, 'cc-badge-warn') + '</dd></div>';
+        if (fulfillNames.length) detailRows += '<div class="pg-detail-row"><dt>Fulfillment</dt><dd>' + chipRow(fulfillNames, 'cc-badge-info') + '</dd></div>';
+        if (p.lead_time_days > 0) detailRows += '<div class="pg-detail-row"><dt>Lead time</dt><dd>' + p.lead_time_days + ' day(s)</dd></div>';
+        if (p.prep_time) detailRows += '<div class="pg-detail-row"><dt>Prep time</dt><dd>' + CC.esc(p.prep_time) + '</dd></div>';
+
+        slot.innerHTML =
+          '<article class="pg-product">' +
+            '<div><div class="pg-gallery-main">' +
+              '<img id="pg-main-img" src="' + CC.esc(gallery[0]) + '" alt="' + CC.esc(p.name) + '">' +
+              (soldOut ? '<span class="cc-badge cc-badge-soldout">Sold Out</span>' : '') +
+            '</div></div>' +
+            '<div class="pg-product-info">' +
+              '<div class="pg-avail">' +
+                (soldOut ? '<span class="cc-badge cc-badge-soldout">Sold Out</span>'
+                         : '<span class="cc-badge cc-badge-ready">Order ahead</span>') +
+              '</div>' +
+              '<h1>' + CC.esc(p.name) + '</h1>' +
+              '<div class="pg-price-row"><span class="cc-price">' + CC.centsToPrice(p.price_cents) + '</span></div>' +
+              '<p class="pg-shop-line"><span data-icon="location" aria-hidden="true"></span>' +
+                CC.esc(shop.city || '') + (shop.city && shop.state ? ', ' : '') + CC.esc(shop.state || '') + '</p>' +
+              (p.description ? '<p>' + CC.esc(p.description) + '</p>' : '') +
+              (detailRows ? '<dl class="pg-detail">' + detailRows + '</dl>' : '') +
+              '<a class="pg-seller" href="shop.html?id=' + CC.esc(shop.id) + '">' +
+                '<span class="pg-seller-info"><strong>' + CC.esc(shop.name) + '</strong>' +
+                '<span>' + CC.esc(shop.city || '') + (shop.city && shop.state ? ', ' : '') + CC.esc(shop.state || '') + '</span></span>' +
+                '<span data-icon="store" aria-hidden="true"></span>' +
+              '</a>' +
+              '<div class="pg-actions">' +
+                '<button type="button" class="cc-btn cc-btn-primary cc-btn-block" id="pg-pick-date"' +
+                  (soldOut ? ' disabled' : '') + '>' +
+                  (soldOut ? 'Sold Out' : 'Choose a date') +
+                '</button>' +
+              '</div>' +
+              '<p class="cc-caption">No in-app checkout — payment is arranged directly with the seller.</p>' +
+            '</div>' +
+          '</article>' +
+          '<section class="cc-avail-wrap" id="cc-avail-live" aria-label="Availability"></section>';
+
+        hydrateIcons(slot);
+        var pickBtn = document.getElementById('pg-pick-date');
+        if (pickBtn && !soldOut) {
+          pickBtn.addEventListener('click', function () {
+            document.getElementById('cc-avail-live').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }
+        AV.renderAvailability(document.getElementById('cc-avail-live'), productId);
+      })
+      .catch(function (err) {
+        slot.innerHTML = CC.states.error({
+          title: 'Listing not found',
+          body: (err && err.message) || 'The link may be outdated.',
+          retryLabel: 'Reload page'
+        }) + '<div class="cc-empty-actions"><a class="cc-btn cc-btn-secondary" href="explore.html">Explore all food</a></div>';
+      });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+<script>
+/* ==========================================================================
+   Stage 5 — LIVE product actions + reviews (appended 2026-10-11; the
+   Stage 1/3/4 code above is untouched). When the backend is live, this
+   waits for the Stage 3/4 live product render, then appends:
+     a) a Save / Share / Report action row (cc_favorites, Web Share API
+        with clipboard fallback, cc_reports) — the live product page had no
+        save affordance, and saving is how dishes reach the profile's
+        "Saved dishes" tab;
+     b) the genuine-reviews section (CC5Reviews): rating summary from real
+        rows only ("No reviews yet" otherwise), review list with photos and
+        seller-response threads, "Write a review" shown ONLY to signed-in
+        buyers with a completed, unreviewed order for this product, star
+        input 1-5 + optional photos (cc-review-images bucket), seller
+        response box for the shop owner, and Report review with an appeal
+        note linking to support.
+   Reviews are never fabricated and nothing is called a "verified purchase"
+   (payment is arranged off-platform). When the backend is NOT live, this
+   block returns early and the pages above run exactly as before.
+   ========================================================================== */
+(function () {
+  'use strict';
+  if (!window.CC || !window.CC5 || !window.CC5Reviews) return;
+  var CC = window.CC;
+  var CC5 = window.CC5;
+
+  function isUuid(s) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s || '');
+  }
+
+  CC.ready.then(function (st) {
+    if (!st.live) return; /* demo path stays exactly as Stage 1 */
+    var id = new URLSearchParams(window.location.search).get('id') || '';
+    if (!isUuid(id)) return;
+    /* The Stage 3/4 live render is async — wait for its product article. */
+    var tries = 0;
+    var iv = window.setInterval(function () {
+      var slot = document.getElementById('pg-product');
+      if (!slot) { window.clearInterval(iv); return; }
+      if (slot.querySelector('[data-cc5r-product]')) { window.clearInterval(iv); return; }
+      if (slot.querySelector('article.pg-product')) {
+        window.clearInterval(iv);
+        enhance(slot, id);
+      } else if (++tries > 120) {
+        window.clearInterval(iv); /* live render failed — leave its error state */
+      }
+    }, 250);
+  });
+
+  function enhance(slot, productId) {
+    CC.sb.from('cc_products').select('id,name,shop_id').eq('id', productId).maybeSingle()
+      .then(function (r) {
+        var p = r.data;
+        if (!p) return;
+        return CC.sb.from('cc_shops_public').select('id,name').eq('id', p.shop_id).maybeSingle()
+          .then(function (sr) { return { p: p, shop: sr.data }; });
+      })
+      .then(function (ctx) {
+        if (!ctx) return;
+        CC5.bindActions(slot);
+        appendActions(slot, ctx.p);
+        var host = document.createElement('div');
+        host.setAttribute('data-cc5r-product', '1');
+        slot.appendChild(host);
+        window.CC5Reviews.renderInto(host, {
+          productId: ctx.p.id,
+          shopId: ctx.p.shop_id,
+          shopName: (ctx.shop || {}).name,
+          productName: ctx.p.name
+        });
+      })
+      .catch(function () { /* reviews are additive — never break the page */ });
+  }
+
+  function appendActions(slot, p) {
+    var article = slot.querySelector('article.pg-product');
+    if (!article || document.querySelector('[data-cc5p-actions]')) return;
+    var row = document.createElement('div');
+    row.setAttribute('data-cc5p-actions', '1');
+    row.className = 'pg-actions';
+    row.style.marginTop = 'var(--cc-space-4)';
+    var url = window.location.href.split('#')[0];
+    row.innerHTML =
+      '<button type="button" class="pg-icon-action" data-cc5-fav-product="' + CC.esc(p.id) + '" aria-pressed="false">' +
+        CC.icon('heart') + '<span data-cc5-fav-label>Save</span></button>' +
+      '<button type="button" class="pg-icon-action" data-cc5-share ' +
+        'data-cc5-share-title="' + CC.esc(p.name + ' — CraveCorner') + '" ' +
+        'data-cc5-share-url="' + CC.esc(url) + '" aria-label="Share this listing">' +
+        CC.icon('share') + '<span data-cc5-share-label>Share</span></button>' +
+      '<button type="button" class="pg-icon-action" data-cc5-report-product="' + CC.esc(p.id) + '" aria-label="Report this listing">' +
+        CC.icon('warning') + '<span>Report</span></button>';
+    var avail = document.getElementById('cc-avail-live');
+    if (avail && avail.parentNode) avail.parentNode.insertBefore(row, avail);
+    else slot.appendChild(row);
+    /* Paint the real saved state for signed-in users. */
+    if (CC.user) {
+      CC.sb.from('cc_favorites').select('product_id')
+        .eq('user_id', CC.user.id).eq('product_id', p.id).limit(1)
+        .then(function (r) {
+          if (r.data && r.data.length) {
+            var btn = row.querySelector('[data-cc5-fav-product]');
+            btn.setAttribute('aria-pressed', 'true');
+            btn.querySelector('[data-cc5-fav-label]').textContent = 'Saved';
+          }
+        });
+    }
+  }
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

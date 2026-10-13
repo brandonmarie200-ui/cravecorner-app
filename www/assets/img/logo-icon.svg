@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="CraveCorner icon">
+<title>CraveCorner icon</title>
+<defs>
+    <mask id="cc-bite-i" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="96">
+      <rect width="96" height="96" fill="#fff"/>
+      <circle cx="56" cy="11" r="8" fill="#000"/>
+      <circle cx="69" cy="13" r="8" fill="#000"/>
+    </mask>
+  </defs>
+  <g mask="url(#cc-bite-i)">
+    <path d="M69.21 26.79A30 30 0 1 0 69.21 69.21" fill="none" stroke="#F45B83" stroke-width="20" stroke-linecap="round"/>
+  </g>
+</svg>

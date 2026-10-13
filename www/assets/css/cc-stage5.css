@@ -1,0 +1,185 @@
+/* ==========================================================================
+   CraveCorner — Stage 5 component styles (assets/css/cc-stage5.css)
+   --------------------------------------------------------------------------
+   Styles ONLY for Stage 5 live components (community feed, cravings,
+   favorites/following, reviews, auth). Built on design-system.css tokens;
+   nothing here restyles Stage 1 components.
+   ========================================================================== */
+
+/* -- Stars ---------------------------------------------------------------- */
+.cc5-stars { display: inline-flex; align-items: center; gap: 2px; vertical-align: -2px; }
+.cc5-stars svg { width: 16px; height: 16px; color: var(--cc-border); }
+.cc5-stars .cc5-star.on { color: var(--cc-mango); fill: var(--cc-mango); }
+
+/* -- Toast ----------------------------------------------------------------- */
+.cc5-toast-host {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 200; display: grid; gap: 0.5rem; width: min(92vw, 420px);
+}
+.cc5-toast {
+  background: var(--cc-cocoa); color: #fff;
+  border-radius: var(--cc-radius-pill);
+  padding: 0.7rem 1.2rem; font-size: 0.9rem; font-weight: 600;
+  text-align: center; box-shadow: var(--cc-shadow-md);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.cc5-toast-out { opacity: 0; transform: translateY(8px); }
+
+/* -- Login wall ------------------------------------------------------------- */
+.cc5-login-wall {
+  background: var(--cc-white);
+  border: 1px solid var(--cc-border-soft);
+  border-radius: var(--cc-radius-card);
+  box-shadow: var(--cc-shadow-sm);
+  padding: var(--cc-space-6) var(--cc-space-5);
+  text-align: center; display: grid; gap: var(--cc-space-2);
+  justify-items: center; max-width: 560px; margin-inline: auto;
+}
+.cc5-login-wall-art {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--cc-pink-50); color: var(--cc-pink-deep);
+  display: grid; place-items: center;
+}
+.cc5-login-wall-art svg { width: 26px; height: 26px; }
+
+/* -- Auth modal / card ------------------------------------------------------- */
+.cc5-auth-lead { margin-bottom: var(--cc-space-4); }
+.cc5-auth-toggle { text-align: center; margin-top: var(--cc-space-3); }
+.cc5-modal-body .cc-alert { margin-bottom: var(--cc-space-3); }
+.cc5-auth-card { padding: var(--cc-space-6); display: grid; gap: var(--cc-space-3); max-width: 560px; }
+.cc5-auth-card h2 { margin: 0; }
+
+/* -- Profile header ----------------------------------------------------------- */
+.cc5-profile-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--cc-space-4); padding: var(--cc-space-5);
+  margin-bottom: var(--cc-space-5);
+}
+.cc5-profile-id { display: flex; align-items: center; gap: var(--cc-space-3); min-width: 0; }
+.cc5-profile-ava {
+  width: 52px; height: 52px; flex: none; border-radius: 50%;
+  background: var(--cc-pink-deep); color: #fff;
+  font-family: var(--cc-font-head); font-weight: 800; font-size: 1.4rem;
+  display: grid; place-items: center;
+}
+
+/* -- Live post card extras ----------------------------------------------------- */
+.cc5-post-media { position: relative; }
+.cc5-photo-count { position: absolute; top: 0.65rem; right: 0.65rem; box-shadow: var(--cc-shadow-sm); }
+.cc5-ava-fallback {
+  display: inline-grid; place-items: center;
+  color: var(--cc-pink-deep);
+}
+.cc5-ava-fallback svg { width: 22px; height: 22px; }
+.cc-post-author a { color: var(--cc-cocoa); }
+.cc-post-author a:hover { color: var(--cc-pink-deep); text-decoration: none; }
+.cc5-prod-link {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  align-self: flex-start;
+  background: var(--cc-mango-50);
+  border: 1px solid var(--cc-mango-200);
+  color: var(--cc-cocoa);
+  font-size: 0.85rem; font-weight: 600;
+  border-radius: var(--cc-radius-pill);
+  padding: 0.45rem 0.95rem;
+}
+.cc5-prod-link:hover { text-decoration: none; border-color: var(--cc-mango); }
+.cc5-prod-link svg { width: 16px; height: 16px; color: var(--cc-mango-ink); flex: none; }
+
+/* -- Cravings ------------------------------------------------------------------ */
+.cc5r-photo { border-radius: var(--cc-radius-md); overflow: hidden; background: var(--cc-cream-deep); }
+.cc5r-photo img { width: 100%; aspect-ratio: 16/10; object-fit: cover; display: block; }
+.cc5r-thread { border-top: 1px solid var(--cc-border-soft); padding-top: var(--cc-space-3); }
+.cc5r-thread summary {
+  cursor: pointer; font-weight: 700; font-size: 0.9rem; color: var(--cc-pink-deep);
+  min-height: 44px; display: inline-flex; align-items: center;
+}
+.cc5r-thread-body { display: grid; gap: var(--cc-space-3); padding-top: var(--cc-space-2); }
+.cc5r-reply {
+  background: var(--cc-cream); border-radius: var(--cc-radius-md);
+  padding: var(--cc-space-3) var(--cc-space-4); display: grid; gap: var(--cc-space-2);
+}
+.cc5r-reply-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--cc-space-2); }
+.cc5r-reply-head a { color: var(--cc-cocoa); }
+.cc5r-form { display: grid; gap: var(--cc-space-2); }
+.cc5r-form-row { display: flex; gap: var(--cc-space-2); flex-wrap: wrap; align-items: stretch; }
+.cc5r-form-row .cc-select { flex: 1; min-width: 160px; }
+.cc5r-author-actions { display: flex; gap: var(--cc-space-2); flex-wrap: wrap; }
+.cc5r-foot { display: flex; justify-content: flex-end; }
+.cc5r-foot .cc-btn svg { width: 15px; height: 15px; }
+
+/* -- Reviews ------------------------------------------------------------------- */
+.cc5r-section { margin-top: var(--cc-space-8); }
+.cc5r-section > h2 { margin-bottom: var(--cc-space-4); }
+.cc5r-summary { display: flex; align-items: center; gap: var(--cc-space-4); padding: var(--cc-space-5); margin-bottom: var(--cc-space-4); }
+.cc5r-avg { font-family: var(--cc-font-head); font-weight: 800; font-size: 2.6rem; color: var(--cc-cocoa); line-height: 1; }
+.cc5r-list { display: grid; gap: var(--cc-space-4); }
+.cc5r-review {
+  background: var(--cc-white); border: 1px solid var(--cc-border-soft);
+  border-radius: var(--cc-radius-card); box-shadow: var(--cc-shadow-sm);
+  padding: var(--cc-space-4); display: grid; gap: var(--cc-space-3);
+}
+.cc5r-review-head { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); flex-wrap: wrap; }
+.cc5r-photos { display: flex; gap: var(--cc-space-2); flex-wrap: wrap; }
+.cc5r-thumb { width: 76px; height: 76px; border: 0; padding: 0; border-radius: var(--cc-radius-sm); overflow: hidden; cursor: pointer; background: var(--cc-cream-deep); }
+.cc5r-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cc5r-response {
+  background: var(--cc-lilac-50); border-left: 3px solid var(--cc-lilac);
+  border-radius: 0 var(--cc-radius-md) var(--cc-radius-md) 0;
+  padding: var(--cc-space-3) var(--cc-space-4); display: grid; gap: var(--cc-space-1);
+}
+.cc5r-response-head { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.85rem; color: var(--cc-lilac-ink); }
+.cc5r-response-head svg { width: 16px; height: 16px; }
+.cc5r-respform { display: grid; gap: var(--cc-space-2); border-top: 1px dashed var(--cc-border); padding-top: var(--cc-space-3); }
+.cc5r-foot { display: flex; justify-content: flex-end; }
+.cc5r-foot .cc-btn svg { width: 15px; height: 15px; }
+.cc5r-cta { margin-top: var(--cc-space-5); display: grid; gap: var(--cc-space-2); justify-items: start; }
+.cc5r-cta .cc-btn svg { width: 16px; height: 16px; }
+.cc5r-orderpick { display: grid; gap: var(--cc-space-2); }
+.cc5r-lightbox { width: 100%; border-radius: var(--cc-radius-md); }
+
+/* Star rating input: 5 -> 1 source order, row-reverse visual */
+.cc5r-stars-input { display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 0.25rem; margin-bottom: var(--cc-space-3); }
+.cc5r-stars-input label { cursor: pointer; padding: 0.25rem; }
+.cc5r-stars-input input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.cc5r-stars-input svg { width: 34px; height: 34px; color: var(--cc-border); transition: color 0.12s ease; }
+.cc5r-stars-input label:hover svg,
+.cc5r-stars-input label:hover ~ label svg,
+.cc5r-stars-input input:checked ~ span svg,
+.cc5r-stars-input input:checked + span svg { color: var(--cc-mango); fill: var(--cc-mango); }
+.cc5r-stars-input input:focus-visible + span svg { outline: 2px solid var(--cc-pink-deep); outline-offset: 2px; border-radius: 4px; }
+
+/* -- Composer ------------------------------------------------------------------- */
+.cc5-composer { display: grid; gap: var(--cc-space-4); }
+.cc5-thumb-row { display: flex; gap: var(--cc-space-2); flex-wrap: wrap; }
+.cc5-thumb-prev { width: 76px; height: 76px; border-radius: var(--cc-radius-sm); object-fit: cover; border: 1px solid var(--cc-border-soft); }
+
+/* -- Saved grids ------------------------------------------------------------------ */
+.cc5-saved-grid { display: grid; gap: var(--cc-space-4); }
+@media (min-width: 768px) { .cc5-saved-grid.cc5-cols-2 { grid-template-columns: 1fr 1fr; } }
+.cc5-status-note { display: inline-flex; align-items: center; gap: 0.35rem; }
+
+/* -- Saved / following rows (profile tabs) --------------------------------------- */
+.cc5-saved-list { display: grid; gap: var(--cc-space-3); }
+.cc5-saved-row {
+  display: flex; gap: var(--cc-space-4); align-items: center;
+  background: var(--cc-white); border: 1px solid var(--cc-border-soft);
+  border-radius: var(--cc-radius-card); box-shadow: var(--cc-shadow-sm);
+  padding: var(--cc-space-3) var(--cc-space-4);
+}
+.cc5-saved-img {
+  width: 72px; height: 72px; flex: none;
+  border-radius: var(--cc-radius-md); object-fit: cover;
+  background: var(--cc-cream-deep);
+}
+.cc5-saved-info { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.cc5-saved-info h3 { font-size: 1rem; margin: 0; font-family: var(--cc-font-head); }
+.cc5-saved-info h3 a { color: var(--cc-cocoa); }
+.cc5-saved-info h3 a:hover { color: var(--cc-pink-deep); text-decoration: none; }
+.cc5-saved-meta { font-size: 0.85rem; color: var(--cc-cocoa-soft); }
+.cc5-saved-row .cc-price { font-size: 1.05rem; }
+.cc5-saved-badges { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 2px; }
+
+/* -- Feed skeleton / load more ------------------------------------------------------- */
+.cc5-loadmore { display: flex; justify-content: center; margin-top: var(--cc-space-5); }

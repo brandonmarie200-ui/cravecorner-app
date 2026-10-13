@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1f2937">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="CraveCorner admin console — moderation, verification, and launch controls. Owner access only.">
+<title>Admin Console — CraveCorner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/admin.css">
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="adm">
+
+<!-- ============ GATE STATES (shown before admin is verified) ============ -->
+<div id="adm-boot" class="adm-gate" style="display:none">
+  <h1>Admin Console</h1>
+  <p id="adm-boot-msg">Checking access…</p>
+</div>
+
+<div id="adm-denied" class="adm-gate" style="display:none">
+  <h1>Access denied</h1>
+  <p>This console is restricted to CraveCorner owners. Your account is signed in,
+     but it is not listed in the admin allow-list. If you should have access,
+     ask an existing owner to run the bootstrap SQL in the launch checklist.</p>
+  <p><button type="button" class="adm-btn" id="adm-denied-signout">Sign out</button>
+     <a class="adm-btn" href="index.html">Back to CraveCorner</a></p>
+</div>
+
+<div id="adm-offline" class="adm-gate" style="display:none">
+  <h1>Backend not live yet</h1>
+  <p>The admin console needs the Supabase backend. Run the migrations
+     (<code>python3 sql/run_migrations.py</code>) and reload this page.</p>
+  <p><a class="adm-btn" href="index.html">Back to CraveCorner</a></p>
+</div>
+
+<!-- ============ APP SHELL ============ -->
+<div id="adm-app" style="display:none">
+  <header class="adm-topbar">
+    <span class="adm-brand">
+      <img src="assets/img/logo-icon.svg" alt="" aria-hidden="true">
+      CraveCorner
+    </span>
+    <span class="adm-env">Admin</span>
+    <span class="adm-spacer"></span>
+    <span class="adm-user" id="adm-user-email"></span>
+    <a class="adm-top-link" href="index.html">View site</a>
+    <button type="button" class="adm-btn adm-btn-sm" id="adm-signout">Sign out</button>
+  </header>
+
+  <div class="adm-layout">
+    <nav class="adm-side" aria-label="Admin sections" id="adm-nav">
+      <div class="adm-sec-label">Monitor</div>
+      <button type="button" data-sec="overview" aria-current="page">Overview</button>
+      <button type="button" data-sec="support">Support inbox <span class="adm-count-pill" data-pill="support" hidden></span></button>
+      <div class="adm-sec-label">Review queues</div>
+      <button type="button" data-sec="shops">Shops <span class="adm-count-pill" data-pill="shops" hidden></span></button>
+      <button type="button" data-sec="products">Products</button>
+      <button type="button" data-sec="foodsafety">Food safety <span class="adm-count-pill" data-pill="foodsafety" hidden></span></button>
+      <button type="button" data-sec="reports">Reports <span class="adm-count-pill" data-pill="reports" hidden></span></button>
+      <button type="button" data-sec="appeals">Appeals <span class="adm-count-pill" data-pill="appeals" hidden></span></button>
+      <div class="adm-sec-label">Manage</div>
+      <button type="button" data-sec="users">Users</button>
+      <button type="button" data-sec="categories">Categories</button>
+      <button type="button" data-sec="featured">Featured shops</button>
+      <button type="button" data-sec="announcements">Announcements</button>
+      <button type="button" data-sec="moderation">Moderation log</button>
+      <button type="button" data-sec="audit">Audit logs</button>
+      <button type="button" data-sec="settings">Settings</button>
+    </nav>
+
+    <main class="adm-main" id="adm-main">
+
+      <!-- ================= OVERVIEW ================= -->
+      <section class="adm-sec adm-sec-active" data-sec="overview" aria-label="Overview">
+        <div class="adm-sec-head"><h1>Overview</h1><p>Live counts from the database — nothing here is estimated or sampled.</p></div>
+        <div id="ov-stats" class="adm-grid"><div class="adm-card"><p>Loading…</p></div></div>
+        <h2 style="margin-top:22px">Needs attention</h2>
+        <div id="ov-attention"></div>
+        <h2 style="margin-top:22px">Recent admin activity</h2>
+        <div class="adm-table-wrap"><table class="adm-table" id="ov-activity">
+          <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+
+      <!-- ================= SUPPORT INBOX ================= -->
+      <section class="adm-sec" data-sec="support" aria-label="Support inbox">
+        <div class="adm-sec-head"><h1>Support inbox</h1>
+          <p>Open reports and appeals that need a human response, newest first.</p></div>
+        <div id="support-list"></div>
+      </section>
+
+      <!-- ================= SHOPS ================= -->
+      <section class="adm-sec" data-sec="shops" aria-label="Shops">
+        <div class="adm-sec-head"><h1>Shops</h1>
+          <p>Review applications, publish or reject, request corrections, suspend.</p></div>
+        <div class="adm-filters">
+          <label class="adm-field"><span>Search name</span><input type="text" id="shops-q" placeholder="Shop name…"></label>
+          <label class="adm-field"><span>Status</span><select id="shops-status">
+            <option value="">All statuses</option>
+            <option value="pending">pending</option><option value="published">published</option>
+            <option value="draft">draft</option><option value="rejected">rejected</option>
+            <option value="suspended">suspended</option>
+          </select></label>
+          <label class="adm-field"><span>State</span><input type="text" id="shops-state" placeholder="TX" maxlength="2" style="width:70px"></label>
+          <button type="button" class="adm-btn adm-btn-primary" id="shops-go">Filter</button>
+        </div>
+        <div id="shops-detail"></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="shops-table">
+          <thead><tr><th>Shop</th><th>Location</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+
+      <!-- ================= PRODUCTS ================= -->
+      <section class="adm-sec" data-sec="products" aria-label="Products">
+        <div class="adm-sec-head"><h1>Products</h1>
+          <p>Remove prohibited products by archiving them (hard delete is blocked by the DB when order history exists).</p></div>
+        <div class="adm-filters">
+          <label class="adm-field"><span>Search name</span><input type="text" id="prod-q" placeholder="Product name…"></label>
+          <label class="adm-field"><span>Status</span><select id="prod-status">
+            <option value="">All statuses</option>
+            <option value="active">active</option><option value="draft">draft</option>
+            <option value="paused">paused</option><option value="sold_out">sold_out</option>
+            <option value="archived">archived</option>
+          </select></label>
+          <label class="adm-field"><span>Category</span><select id="prod-cat"><option value="">All categories</option></select></label>
+          <button type="button" class="adm-btn adm-btn-primary" id="prod-go">Filter</button>
+        </div>
+        <div class="adm-table-wrap"><table class="adm-table" id="prod-table">
+          <thead><tr><th>Product</th><th>Shop</th><th>Category</th><th>Price</th><th>Status</th><th>Orders</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+
+      <!-- ================= FOOD SAFETY ================= -->
+      <section class="adm-sec" data-sec="foodsafety" aria-label="Food safety">
+        <div class="adm-sec-head"><h1>Food safety</h1>
+          <p>Review seller declarations and documents. Read the honesty rules below before approving anything.</p></div>
+        <div class="adm-callout adm-callout-warn"><strong>Honesty rules — non-negotiable</strong>
+          CraveCorner never independently verifies food-safety compliance. A <em>reviewed</em>
+          declaration means an admin looked at the submitted paperwork — it is <strong>not</strong>
+          a health inspection and does <strong>not</strong> mean the seller complies with local law.
+          Sellers are solely responsible for complying with their state and local cottage-food rules
+          (rules vary by state). Never present a shop as "verified safe" or "health-inspected."</div>
+        <h2>Pending reviews</h2>
+        <div id="fs-detail"></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="fs-table">
+          <thead><tr><th>Shop</th><th>Document</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <h2 style="margin-top:22px">Recently reviewed</h2>
+        <div class="adm-table-wrap"><table class="adm-table" id="fs-done-table">
+          <thead><tr><th>Shop</th><th>Document</th><th>Decision</th><th>Reviewer note</th><th>Reviewed</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <h2 style="margin-top:22px">Published shops without a declaration</h2>
+        <div id="fs-missing"></div>
+      </section>
+
+      <!-- ================= REPORTS ================= -->
+      <section class="adm-sec" data-sec="reports" aria-label="Reports">
+        <div class="adm-sec-head"><h1>Reports</h1><p>Triage user reports. Dismiss, mark reviewed, or take enforcement action.</p></div>
+        <div class="adm-filters">
+          <label class="adm-field"><span>Status</span><select id="rep-status">
+            <option value="open">open</option><option value="">All</option>
+            <option value="reviewed">reviewed</option><option value="actioned">actioned</option>
+            <option value="dismissed">dismissed</option>
+          </select></label>
+          <label class="adm-field"><span>Priority</span><select id="rep-priority">
+            <option value="">All</option><option value="urgent">urgent</option>
+            <option value="high">high</option><option value="normal">normal</option>
+            <option value="low">low</option>
+          </select></label>
+          <label class="adm-field"><span>Target type</span><select id="rep-target">
+            <option value="">All</option><option value="shop">shop</option><option value="product">product</option>
+            <option value="post">post</option><option value="review">review</option>
+            <option value="craving">craving</option><option value="message">message</option>
+            <option value="user">user</option>
+          </select></label>
+          <button type="button" class="adm-btn adm-btn-primary" id="rep-go">Filter</button>
+        </div>
+        <div id="rep-detail"></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="rep-table">
+          <thead><tr><th>Target</th><th>Reason</th><th>Priority</th><th>Status</th><th>Reported</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+
+      <!-- ================= APPEALS ================= -->
+      <section class="adm-sec" data-sec="appeals" aria-label="Appeals">
+        <div class="adm-sec-head"><h1>Appeals</h1>
+          <p>Users appealing a moderation action. Uphold or overturn — overturning records the
+             decision; reverse the original enforcement (e.g. unsuspend the shop) manually.</p></div>
+        <div id="app-detail"></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="app-table">
+          <thead><tr><th>User</th><th>Against action</th><th>Status</th><th>Filed</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+
+      <!-- ================= USERS ================= -->
+      <section class="adm-sec" data-sec="users" aria-label="Users">
+        <div class="adm-sec-head"><h1>Users</h1>
+          <p>Search profiles. Suspension is <strong>shop-level</strong> — there is no
+             account-level ban column in the schema (see the note below).</p></div>
+        <div class="adm-callout adm-callout-info"><strong>About suspending users</strong>
+          <code>cc_profiles</code> has no suspended flag. Suspending a user means setting
+          their shop's status to <code>suspended</code> (public listings hide it; the seller
+          cannot publish again until unsuspended). Every suspension is recorded as a
+          moderation action and in the audit log.</div>
+        <div class="adm-filters">
+          <label class="adm-field"><span>Search display name</span><input type="text" id="users-q" placeholder="Name…"></label>
+          <button type="button" class="adm-btn adm-btn-primary" id="users-go">Search</button>
+        </div>
+        <div id="users-detail"></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="users-table">
+          <thead><tr><th>User</th><th>Location</th><th>Seller</th><th>Shop</th><th>Joined</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+
+      <!-- ================= CATEGORIES ================= -->
+      <section class="adm-sec" data-sec="categories" aria-label="Categories">
+        <div class="adm-sec-head"><h1>Categories</h1>
+          <p>Manage the food catalog. Deleting a category unsets it on products (they become uncategorized).</p>
+          <span style="flex:1"></span>
+          <button type="button" class="adm-btn adm-btn-primary" id="cat-add">Add category</button></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="cat-table">
+          <thead><tr><th>Order</th><th>Name</th><th>Slug</th><th>Description</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+
+      <!-- ================= FEATURED SHOPS ================= -->
+      <section class="adm-sec" data-sec="featured" aria-label="Featured shops">
+        <div class="adm-sec-head"><h1>Featured shops</h1></div>
+        <div class="adm-callout adm-callout-warn"><strong>Not available yet — schema gap (documented, not invented)</strong>
+          <p><code>cc_shops</code> has no <code>is_featured</code> column, so this panel does not
+          query or write one. To enable featured shops before launch, an owner should run this
+          migration in the Supabase SQL editor (it is <strong>not</strong> run yet):</p>
+          <pre style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:12px;overflow-x:auto;font-size:12px">-- Featured shops (Stage 6 note — run once, then refresh the view)
+alter table public.cc_shops
+  add column if not exists is_featured boolean not null default false;
+
+-- Expose the flag on the public materialized view (edit the view
+-- definition in 00_schema.sql to select s.is_featured, then):
+refresh materialized view public.cc_shops_public;</pre>
+          <p style="margin-bottom:0">After the migration, this panel will list shops with a
+          feature/unfeature toggle. Until then, no featured-shop UI ships to buyers —
+          nothing fake is shown.</p></div>
+      </section>
+
+      <!-- ================= ANNOUNCEMENTS ================= -->
+      <section class="adm-sec" data-sec="announcements" aria-label="Announcements">
+        <div class="adm-sec-head"><h1>Announcements</h1>
+          <p>Site-wide notices. Empty publish date = draft (not shown to buyers).</p>
+          <span style="flex:1"></span>
+          <button type="button" class="adm-btn adm-btn-primary" id="ann-add">New announcement</button></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="ann-table">
+          <thead><tr><th>Title</th><th>Audience</th><th>Status</th><th>Updated</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+
+      <!-- ================= MODERATION LOG ================= -->
+      <section class="adm-sec" data-sec="moderation" aria-label="Moderation log">
+        <div class="adm-sec-head"><h1>Moderation log</h1><p>Every enforcement action taken by an admin. Read-only.</p></div>
+        <div class="adm-table-wrap"><table class="adm-table" id="mod-table">
+          <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th><th>Reason</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+
+      <!-- ================= AUDIT LOGS ================= -->
+      <section class="adm-sec" data-sec="audit" aria-label="Audit logs">
+        <div class="adm-sec-head"><h1>Audit logs</h1><p>Append-only record of every admin action. Read-only.</p></div>
+        <div class="adm-filters">
+          <label class="adm-field"><span>Search action</span><input type="text" id="audit-q" placeholder="e.g. shop.approve"></label>
+          <button type="button" class="adm-btn adm-btn-primary" id="audit-go">Search</button>
+        </div>
+        <div class="adm-table-wrap"><table class="adm-table" id="audit-table">
+          <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+
+      <!-- ================= SETTINGS ================= -->
+      <section class="adm-sec" data-sec="settings" aria-label="Settings">
+        <div class="adm-sec-head"><h1>Settings</h1><p>Read-only configuration and references.</p></div>
+        <div id="settings-body"></div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/cc-admin.js"></script>
+<script>
+/* ==========================================================================
+   CraveCorner admin console — page logic (admin.html inline script)
+   Stage 6. Defense in depth: nothing renders until CCAdmin.requireAdmin()
+   resolves. Every write below is an admin-gated RLS operation and is
+   followed by an audit log entry (see cc-admin.js).
+   ========================================================================== */
+(function () {
+  "use strict";
+
+  var CC = window.CC, A = window.CCAdmin;
+  var sb = function () { return CC.sb; };
+  var $ = function (id) { return document.getElementById(id); };
+
+  function show(id) {
+    ["adm-boot", "adm-denied", "adm-offline", "adm-app"].forEach(function (x) {
+      $(x).style.display = x === id ? "" : "none";
+    });
+  }
+
+  function shortId(id) {
+    return id ? '<span class="adm-id">' + A.esc(String(id).slice(0, 8)) + "…</span>" : "—";
+  }
+
+  function targetLabel(t, id) {
+    return A.esc(t || "?") + " " + shortId(id);
+  }
+
+  /* ---- section nav ------------------------------------------------------ */
+  var loaders = {};
+  function goSection(name) {
+    document.querySelectorAll("#adm-nav button[data-sec]").forEach(function (b) {
+      if (b.getAttribute("data-sec") === name) b.setAttribute("aria-current", "page");
+      else b.removeAttribute("aria-current");
+    });
+    document.querySelectorAll(".adm-sec").forEach(function (s) {
+      s.classList.toggle("adm-sec-active", s.getAttribute("data-sec") === name);
+    });
+    if (loaders[name]) loaders[name]();
+    try { window.scrollTo(0, 0); } catch (e) {}
+  }
+  document.querySelectorAll("#adm-nav button[data-sec]").forEach(function (b) {
+    b.addEventListener("click", function () { goSection(b.getAttribute("data-sec")); });
+  });
+
+  function setPill(name, n) {
+    var el = document.querySelector('[data-pill="' + name + '"]');
+    if (!el) return;
+    if (n > 0) { el.hidden = false; el.textContent = n > 99 ? "99+" : String(n); }
+    else el.hidden = true;
+  }
+
+  function refreshPills() {
+    A.count("cc_reports", [["status", "open"]]).then(function (n) { setPill("reports", n); }).catch(function () {});
+    A.count("cc_shops", [["status", "pending"]]).then(function (n) { setPill("shops", n); }).catch(function () {});
+    A.count("cc_shop_verification", [["status", "pending"]]).then(function (n) { setPill("foodsafety", n); }).catch(function () {});
+    A.count("cc_appeals", [["status", "open"]]).then(function (n) { setPill("appeals", n); }).catch(function () {});
+    Promise.all([
+      sb().from("cc_reports").select("id", { count: "exact", head: true })
+        .in("status", ["open", "reviewed"]),
+      A.count("cc_appeals", [["status", "open"]])
+    ]).then(function (rs) {
+      setPill("support", (rs[0].count || 0) + rs[1]);
+    }).catch(function () {});
+  }
+
+  /* ---- generic table renderer ------------------------------------------- */
+  function renderRows(tableId, rows, emptyMsg) {
+    var tb = document.querySelector("#" + tableId + " tbody");
+    if (!rows || !rows.length) {
+      tb.innerHTML = '<tr><td colspan="20"><div class="adm-empty">' +
+        A.esc(emptyMsg || "Nothing here.") + "</div></td></tr>";
+      return;
+    }
+    tb.innerHTML = rows.join("");
+  }
+
+  /* ================= OVERVIEW ================= */
+  loaders.overview = function () {
+    var stats = $("ov-stats");
+    var jobs = [
+      A.count("cc_profiles", []),
+      A.count("cc_shops", [["status", "pending"]]),
+      A.count("cc_shops", [["status", "published"]]),
+      A.count("cc_shops", [["status", "suspended"]]),
+      A.count("cc_products", [["status", "active"]]),
+      A.count("cc_products", [["status", "draft"]]),
+      A.count("cc_reports", [["status", "open"]]),
+      A.count("cc_shop_verification", [["status", "pending"]]),
+      A.count("cc_appeals", [["status", "open"]])
+    ];
+    Promise.all(jobs).then(function (r) {
+      var cards = [
+        ["Users", r[0], "registered profiles"],
+        ["Shops pending", r[1], "awaiting review"],
+        ["Shops live", r[2], "published"],
+        ["Shops suspended", r[3], "enforcement"],
+        ["Products active", r[4], "visible to buyers"],
+        ["Products in draft", r[5], "not yet listed"],
+        ["Open reports", r[6], "needs triage"],
+        ["Verifications pending", r[7], "food-safety docs"],
+        ["Open appeals", r[8], "needs decision"]
+      ];
+      stats.innerHTML = cards.map(function (c) {
+        return '<div class="adm-card adm-stat"><div class="adm-stat-num">' + c[1] +
+          '</div><div class="adm-stat-label">' + A.esc(c[0]) +
+          '</div><div class="adm-stat-sub">' + A.esc(c[2]) + "</div></div>";
+      }).join("");
+    }).catch(function () {
+      stats.innerHTML = '<div class="adm-card"><p>Could not load counts.</p></div>';
+    });
+
+    // Needs attention: newest open items across queues
+    Promise.all([
+      sb().from("cc_reports").select("id,target_type,priority,reason,created_at")
+        .eq("status", "open").order("created_at", { ascending: false }).limit(5),
+      sb().from("cc_shops").select("id,name,created_at")
+        .eq("status", "pending").order("created_at", { ascending: false }).limit(5),
+      sb().from("cc_shop_verification").select("id,shop_id,doc_type,created_at")
+        .eq("status", "pending").order("created_at", { ascending: false }).limit(5)
+    ]).then(function (rs) {
+      var html = "";
+      (rs[0].data || []).forEach(function (r) {
+        html += '<div class="adm-callout adm-callout-bad"><strong>Report (' + A.esc(r.priority) +
+          ") — " + A.esc(r.target_type) + '</strong>' + A.esc(r.reason || "") +
+          ' <span style="color:#94a3b8">' + A.timeAgo(r.created_at) + "</span></div>";
+      });
+      (rs[1].data || []).forEach(function (s) {
+        html += '<div class="adm-callout adm-callout-warn"><strong>Shop awaiting review</strong> ' +
+          A.esc(s.name) + ' <span style="color:#94a3b8">' + A.timeAgo(s.created_at) + "</span></div>";
+      });
+      (rs[2].data || []).forEach(function (v) {
+        html += '<div class="adm-callout adm-callout-warn"><strong>Verification pending</strong> ' +
+          A.esc(v.doc_type) + " for shop " + shortId(v.shop_id) +
+          ' <span style="color:#94a3b8">' + A.timeAgo(v.created_at) + "</span></div>";
+      });
+      $("ov-attention").innerHTML = html || '<div class="adm-callout"><strong>All clear.</strong> No open queues.</div>';
+    });
+
+    sb().from("cc_audit_logs")
+      .select("created_at,actor_admin_email,action,target_type,target_id")
+      .order("created_at", { ascending: false }).limit(10)
+      .then(function (r) {
+        renderRows("ov-activity", (r.data || []).map(function (a) {
+          return "<tr><td>" + A.timeAgo(a.created_at) + "</td><td>" +
+            A.esc(a.actor_admin_email) + "</td><td><code>" + A.esc(a.action) +
+            "</code></td><td>" + targetLabel(a.target_type, a.target_id) + "</td></tr>";
+        }), "No admin activity yet.");
+      });
+  };
+
+  /* ================= SHOPS ================= */
+  function shopActions(s) {
+    var b = '<div class="adm-btn-row">';
+    b += '<button type="button" class="adm-btn adm-btn-sm" data-shop-view="' + s.id + '">View</button>';
+    if (s.status === "pending") {
+      b += '<button type="button" class="adm-btn adm-btn-sm adm-btn-primary" data-shop-approve="' + s.id + '">Approve</button>';
+      b += '<button type="button" class="adm-btn adm-btn-sm adm-btn-danger" data-shop-reject="' + s.id + '">Reject</button>';
+      b += '<button type="button" class="adm-btn adm-btn-sm" data-shop-correct="' + s.id + '">Request corrections</button>';
+    }
+    if (s.status === "published" || s.status === "rejected") {
+      b += '<button type="button" class="adm-btn adm-btn-sm adm-btn-danger" data-shop-suspend="' + s.id + '">Suspend</button>';
+    }
+    if (s.status === "suspended") {
+      b += '<button type="button" class="adm-btn adm-btn-sm adm-btn-primary" data-shop-unsuspend="' + s.id + '">Unsuspend</button>';
+    }
+    if (s.status === "draft") {
+      b += '<button type="button" class="adm-btn adm-btn-sm adm-btn-primary" data-shop-approve="' + s.id + '">Publish</button>';
+    }
+    return b + "</div>";
+  }
+
+  loaders.shops = function () {
+    var q = sb().from("cc_shops")
+      .select("id,name,slug,city,state,status,created_at,user_id")
+      .order("created_at", { ascending: false }).limit(100);
+    var nameQ = $("shops-q").value.trim();
+    var stQ = $("shops-status").value;
+    var stateQ = $("shops-state").value.trim().toUpperCase();
+    if (nameQ) q = q.ilike("name", "%" + nameQ + "%");
+    if (stQ) q = q.eq("status", stQ);
+    if (stateQ) q = q.eq("state", stateQ);
+    q.then(function (r) {
+      if (r.error) throw r.error;
+      renderRows("shops-table", (r.data || []).map(function (s) {
+        return "<tr><td><strong>" + A.esc(s.name) + "</strong><br>" + shortId(s.id) +
+          '</td><td>' + A.esc([s.city, s.state].filter(Boolean).join(", ") || "—") +
+          "</td><td>" + A.badge(s.status) + "</td><td>" + A.timeAgo(s.created_at) +
+          "</td><td>" + shopActions(s) + "</td></tr>";
+      }), "No shops match these filters.");
+    }).catch(function (e) { A.toast("Could not load shops: " + e.message, "error"); });
+  };
+  $("shops-go").addEventListener("click", loaders.shops);
+
+  function showShopDetail(id) {
+    sb().from("cc_shops").select("*").eq("id", id).single().then(function (r) {
+      if (r.error) throw r.error;
+      var s = r.data;
+      var rows = [
+        ["Name", A.esc(s.name)], ["Slug", A.esc(s.slug)],
+        ["Status", A.badge(s.status)],
+        ["Location", A.esc([s.city, s.state].filter(Boolean).join(", ") || "—")],
+        ["Service area", A.esc(s.service_area || "—")],
+        ["Private address", "<strong>" + A.esc(s.private_address || "—") +
+          "</strong> <span style='color:#94a3b8'>(owner-private; handle with care)</span>"],
+        ["Fulfillment", ["pickup", "delivery", "shipping"].filter(function (k) { return s["fulfillment_" + k]; }).join(", ") || "—"],
+        ["Rejection / correction note", A.esc(s.rejection_reason || "—")],
+        ["Views", s.view_count], ["Owner", shortId(s.user_id)],
+        ["Created", A.fmtDate(s.created_at)], ["Updated", A.fmtDate(s.updated_at)]
+      ];
+      $("shops-detail").innerHTML =
+        '<div class="adm-detail"><h3>' + A.esc(s.name) + '</h3><dl>' +
+        rows.map(function (x) { return "<dt>" + x[0] + "</dt><dd>" + x[1] + "</dd>"; }).join("") +
+        "</dl>" + shopActions(s) +
+        ' <button type="button" class="adm-btn adm-btn-sm" data-shop-close>Close</button></div>';
+    }).catch(function (e) { A.toast("Could not load shop: " + e.message, "error"); });
+  }
+
+  // Delegated shop action buttons (table + detail panel)
+  document.addEventListener("click", function (ev) {
+    var t = ev.target;
+    function has(attr) { return t.closest && t.closest("[" + attr + "]"); }
+    var el;
+    if ((el = has("data-shop-close"))) { $("shops-detail").innerHTML = ""; return; }
+    if ((el = has("data-shop-view"))) { showShopDetail(el.getAttribute("data-shop-view")); return; }
+
+    if ((el = has("data-shop-approve"))) {
+      var idA = el.getAttribute("data-shop-approve");
+      A.confirm({ title: "Publish this shop?",
+        body: "The shop becomes publicly visible. Only approve shops you have actually reviewed.",
+        confirmLabel: "Publish shop", danger: false }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_shops").update({ status: "published", rejection_reason: null }).eq("id", idA)
+            .then(function (r) { if (r.error) throw r.error; })
+            .then(function () { return A.moderate({ target_type: "shop", target_id: idA, action: "approve_shop", reason: "Application reviewed and approved." }); });
+        }, "Shop published.").then(function () { refreshPills(); loaders.shops(); });
+      });
+      return;
+    }
+    if ((el = has("data-shop-reject"))) {
+      var idR = el.getAttribute("data-shop-reject");
+      A.confirm({ title: "Reject this shop?",
+        body: "The seller sees your note as the rejection reason. Be specific and kind.",
+        confirmLabel: "Reject shop", requireNote: true, noteLabel: "Rejection reason (shown to seller)" }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_shops").update({ status: "rejected", rejection_reason: c.note }).eq("id", idR)
+            .then(function (r) { if (r.error) throw r.error; })
+            .then(function () { return A.moderate({ target_type: "shop", target_id: idR, action: "reject_shop", reason: c.note }); });
+        }, "Shop rejected.").then(function () { refreshPills(); loaders.shops(); $("shops-detail").innerHTML = ""; });
+      });
+      return;
+    }
+    if ((el = has("data-shop-correct"))) {
+      var idC = el.getAttribute("data-shop-correct");
+      A.confirm({ title: "Request corrections?",
+        body: "Sends the shop back to <strong>draft</strong> with your note. The seller can resubmit after fixing.",
+        confirmLabel: "Send back to draft", danger: false, requireNote: true, noteLabel: "What needs fixing (shown to seller)" }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_shops").update({ status: "draft", rejection_reason: c.note }).eq("id", idC)
+            .then(function (r) { if (r.error) throw r.error; })
+            .then(function () { return A.moderate({ target_type: "shop", target_id: idC, action: "request_corrections", reason: c.note }); });
+        }, "Corrections requested.").then(function () { refreshPills(); loaders.shops(); $("shops-detail").innerHTML = ""; });
+      });
+      return;
+    }
+    if ((el = has("data-shop-suspend"))) {
+      var idS = el.getAttribute("data-shop-suspend");
+      sb().from("cc_shops").select("status").eq("id", idS).single().then(function (r) {
+        var prior = (r.data && r.data.status) || "published";
+        return A.confirm({ title: "Suspend this shop?",
+          body: "The shop is hidden from the public immediately. This is recorded as an enforcement action.",
+          confirmLabel: "Suspend shop", requireNote: true, noteLabel: "Suspension reason (required)" })
+          .then(function (c) {
+            if (!c.ok) return;
+            return A.run(function () {
+              return sb().from("cc_shops").update({ status: "suspended" }).eq("id", idS)
+                .then(function (u) { if (u.error) throw u.error; })
+                .then(function () {
+                  return A.moderate({ target_type: "shop", target_id: idS, action: "suspend_shop",
+                    reason: c.note, details: { prior_status: prior } });
+                });
+            }, "Shop suspended.").then(function () { refreshPills(); loaders.shops(); $("shops-detail").innerHTML = ""; });
+          });
+      });
+      return;
+    }
+    if ((el = has("data-shop-unsuspend"))) {
+      var idU = el.getAttribute("data-shop-unsuspend");
+      A.confirm({ title: "Unsuspend this shop?",
+        body: "Restores the shop to the status it had before suspension (or published).",
+        confirmLabel: "Unsuspend", danger: false }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_audit_logs")
+            .select("details").eq("action", "moderation.suspend_shop").eq("target_id", idU)
+            .order("created_at", { ascending: false }).limit(1)
+            .then(function (m) {
+              var back = (m.data && m.data[0] && m.data[0].details && m.data[0].details.prior_status) || "published";
+              return sb().from("cc_shops").update({ status: back }).eq("id", idU)
+                .then(function (u) { if (u.error) throw u.error; })
+                .then(function () { return A.moderate({ target_type: "shop", target_id: idU, action: "unsuspend_shop", reason: "Suspension lifted.", details: { restored_status: back } }); });
+            });
+        }, "Shop unsuspended.").then(function () { refreshPills(); loaders.shops(); $("shops-detail").innerHTML = ""; });
+      });
+      return;
+    }
+  });
+
+  /* ================= PRODUCTS ================= */
+  var catMap = {};
+  function loadCatOptions() {
+    return sb().from("cc_categories").select("id,name").order("sort_order").then(function (r) {
+      if (r.error) throw r.error;
+      catMap = {};
+      var sel = $("prod-cat");
+      sel.innerHTML = '<option value="">All categories</option>';
+      (r.data || []).forEach(function (c) {
+        catMap[c.id] = c.name;
+        var o = document.createElement("option");
+        o.value = c.id; o.textContent = c.name;
+        sel.appendChild(o);
+      });
+    }).catch(function () {});
+  }
+
+  loaders.products = function () {
+    var q = sb().from("cc_products")
+      .select("id,name,price_cents,status,total_orders,created_at,shop_id,category_id")
+      .order("created_at", { ascending: false }).limit(100);
+    var nameQ = $("prod-q").value.trim();
+    var stQ = $("prod-status").value;
+    var catQ = $("prod-cat").value;
+    if (nameQ) q = q.ilike("name", "%" + nameQ + "%");
+    if (stQ) q = q.eq("status", stQ);
+    if (catQ) q = q.eq("category_id", catQ);
+    q.then(function (r) {
+      if (r.error) throw r.error;
+      var prods = r.data || [];
+      var shopIds = [...new Set(prods.map(function (p) { return p.shop_id; }))];
+      return sb().from("cc_shops").select("id,name").in("id", shopIds.length ? shopIds : ["00000000-0000-0000-0000-000000000000"])
+        .then(function (sr) {
+          var sm = {};
+          (sr.data || []).forEach(function (s) { sm[s.id] = s.name; });
+          renderRows("prod-table", prods.map(function (p) {
+            var acts = '<div class="adm-btn-row">' +
+              '<a class="adm-btn adm-btn-sm" href="product.html?id=' + p.id + '" target="_blank" rel="noopener">View</a>';
+            if (p.status !== "archived") {
+              acts += '<button type="button" class="adm-btn adm-btn-sm adm-btn-danger" data-prod-archive="' + p.id + '">Archive</button>';
+            } else {
+              acts += '<button type="button" class="adm-btn adm-btn-sm" data-prod-unarchive="' + p.id + '">Restore to draft</button>';
+            }
+            return "<tr><td><strong>" + A.esc(p.name) + "</strong><br>" + shortId(p.id) +
+              "</td><td>" + A.esc(sm[p.shop_id] || "—") + "</td><td>" + A.esc(catMap[p.category_id] || "—") +
+              "</td><td>" + A.esc(CC.centsToPrice(p.price_cents)) + "</td><td>" + A.badge(p.status) +
+              "</td><td>" + (p.total_orders || 0) + "</td><td>" + acts + "</div></td></tr>";
+          }), "No products match these filters.");
+        });
+    }).catch(function (e) { A.toast("Could not load products: " + e.message, "error"); });
+  };
+  $("prod-go").addEventListener("click", loaders.products);
+
+  document.addEventListener("click", function (ev) {
+    var t = ev.target, el;
+    function has(attr) { return t.closest && t.closest("[" + attr + "]"); }
+    if ((el = has("data-prod-archive"))) {
+      var idA = el.getAttribute("data-prod-archive");
+      A.confirm({ title: "Archive this product?",
+        body: "The product is delisted immediately (status → <strong>archived</strong>). Order history is preserved — hard delete is blocked by the database.",
+        confirmLabel: "Archive product", requireNote: true, noteLabel: "Reason (required, recorded)" }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_products").update({ status: "archived" }).eq("id", idA)
+            .then(function (r) { if (r.error) throw r.error; })
+            .then(function () { return A.moderate({ target_type: "product", target_id: idA, action: "archive_product", reason: c.note }); });
+        }, "Product archived.").then(loaders.products);
+      });
+    }
+    if ((el = has("data-prod-unarchive"))) {
+      var idU = el.getAttribute("data-prod-unarchive");
+      A.confirm({ title: "Restore this product?",
+        body: "Restores to <strong>draft</strong> (not active) — the seller republishes it themselves.",
+        confirmLabel: "Restore to draft", danger: false }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_products").update({ status: "draft" }).eq("id", idU)
+            .then(function (r) { if (r.error) throw r.error; })
+            .then(function () { return A.moderate({ target_type: "product", target_id: idU, action: "unarchive_product", reason: "Restored to draft by admin." }); });
+        }, "Product restored to draft.").then(loaders.products);
+      });
+    }
+  });
+
+  /* ================= FOOD SAFETY ================= */
+  loaders.foodsafety = function () {
+    var q = sb().from("cc_shop_verification")
+      .select("id,shop_id,doc_type,doc_url,declarations,status,reviewer_note,created_at,updated_at")
+      .order("created_at", { ascending: false }).limit(100);
+    q.then(function (r) {
+      if (r.error) throw r.error;
+      var rows = r.data || [];
+      var shopIds = [...new Set(rows.map(function (x) { return x.shop_id; }))];
+      return sb().from("cc_shops").select("id,name,state,status")
+        .in("id", shopIds.length ? shopIds : ["00000000-0000-0000-0000-000000000000"])
+        .then(function (sr) {
+          var sm = {};
+          (sr.data || []).forEach(function (s) { sm[s.id] = s; });
+          var pend = rows.filter(function (x) { return x.status === "pending"; });
+          var done = rows.filter(function (x) { return x.status !== "pending"; }).slice(0, 20);
+          function rowHtml(v) {
+            var s = sm[v.shop_id] || {};
+            return "<tr><td><strong>" + A.esc(s.name || "Unknown shop") + "</strong><br>" + shortId(v.shop_id) +
+              "</td><td>" + A.esc(v.doc_type) + "</td><td>" + A.badge(v.status) +
+              "</td><td>" + A.timeAgo(v.created_at) + "</td><td>" +
+              (v.status === "pending"
+                ? '<div class="adm-btn-row"><button type="button" class="adm-btn adm-btn-sm" data-fs-view="' + v.id + '">Review</button></div>'
+                : "—") + "</td></tr>";
+          }
+          renderRows("fs-table", pend.map(rowHtml), "No pending verifications. Sellers submit declarations during onboarding (Stage 2).");
+          renderRows("fs-done-table", done.map(function (v) {
+            var s = sm[v.shop_id] || {};
+            return "<tr><td>" + A.esc(s.name || "—") + "</td><td>" + A.esc(v.doc_type) +
+              "</td><td>" + A.badge(v.status) + "</td><td>" + A.esc(v.reviewer_note || "—") +
+              "</td><td>" + A.timeAgo(v.updated_at) + "</td></tr>";
+          }), "Nothing reviewed yet.");
+
+          // Published shops with no verification record at all
+          sb().from("cc_shops").select("id,name,state").eq("status", "published").limit(200)
+            .then(function (pr) {
+              var verified = {};
+              rows.forEach(function (x) { verified[x.shop_id] = true; });
+              var missing = (pr.data || []).filter(function (s) { return !verified[s.id]; });
+              $("fs-missing").innerHTML = missing.length
+                ? '<div class="adm-callout adm-callout-warn"><strong>' + missing.length +
+                  ' published shop(s) have no food-safety declaration on file.</strong> ' +
+                  "These shops were published before declarations were collected, or the seller has not submitted one. " +
+                  "Their listings are <strong>seller-declared only — not reviewed</strong>.<br>" +
+                  missing.slice(0, 20).map(function (s) {
+                    return A.esc(s.name) + " (" + A.esc(s.state || "?") + ")";
+                  }).join(" · ") + (missing.length > 20 ? " · …" : "") + "</div>"
+                : '<div class="adm-callout"><strong>Complete.</strong> Every published shop has a declaration on file.</div>';
+            });
+        });
+    }).catch(function (e) { A.toast("Could not load verifications: " + e.message, "error"); });
+  };
+
+  document.addEventListener("click", function (ev) {
+    var t = ev.target, el;
+    function has(attr) { return t.closest && t.closest("[" + attr + "]"); }
+    if ((el = has("data-fs-view"))) {
+      var id = el.getAttribute("data-fs-view");
+      sb().from("cc_shop_verification").select("*").eq("id", id).single().then(function (r) {
+        if (r.error) throw r.error;
+        var v = r.data;
+        return sb().from("cc_shops").select("id,name,state").eq("id", v.shop_id).single()
+          .then(function (sr) {
+            var s = sr.data || {};
+            var docLink = v.doc_url
+              ? '<a href="' + A.esc(v.doc_url) + '" target="_blank" rel="noopener">Open document</a>'
+              : "No document attached (declarations only)";
+            $("fs-detail").innerHTML =
+              '<div class="adm-detail"><h3>Food-safety review — ' + A.esc(s.name || "Unknown shop") + '</h3>' +
+              '<dl><dt>Document type</dt><dd>' + A.esc(v.doc_type) + '</dd>' +
+              "<dt>Document</dt><dd>" + docLink + "</dd>" +
+              "<dt>Submitted</dt><dd>" + A.fmtDate(v.created_at) + "</dd></dl>" +
+              "<dt>Declarations (seller self-declared)</dt>" +
+              "<pre>" + A.esc(JSON.stringify(v.declarations || {}, null, 2)) + "</pre>" +
+              '<div class="adm-btn-row" style="margin-top:12px">' +
+              '<button type="button" class="adm-btn adm-btn-sm adm-btn-primary" data-fs-approve="' + v.id + '">Approve</button>' +
+              '<button type="button" class="adm-btn adm-btn-sm adm-btn-danger" data-fs-reject="' + v.id + '">Reject</button>' +
+              '<button type="button" class="adm-btn adm-btn-sm" data-fs-close>Close</button></div>' +
+              '<p style="color:#94a3b8;font-size:12px;margin-top:10px">Approving records that you reviewed the paperwork. ' +
+              "It does not certify the kitchen, the food, or legal compliance.</p></div>";
+          });
+      }).catch(function (e) { A.toast("Could not load verification: " + e.message, "error"); });
+    }
+    if (has("data-fs-close")) { $("fs-detail").innerHTML = ""; return; }
+    if ((el = has("data-fs-approve"))) {
+      var idA = el.getAttribute("data-fs-approve");
+      A.confirm({ title: "Approve this declaration?",
+        body: "Records that an admin <strong>reviewed the submitted paperwork</strong>. This is not a health inspection and must never be presented as one.",
+        confirmLabel: "Approve", danger: false, noteLabel: "Reviewer note (optional)" }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_shop_verification")
+            .update({ status: "approved", reviewer_note: c.note || null }).eq("id", idA)
+            .then(function (r) { if (r.error) throw r.error; })
+            .then(function () { return A.audit("verification.approve", "shop_verification", idA, { note: c.note || null }); });
+        }, "Declaration approved.").then(function () { refreshPills(); loaders.foodsafety(); $("fs-detail").innerHTML = ""; });
+      });
+    }
+    if ((el = has("data-fs-reject"))) {
+      var idR = el.getAttribute("data-fs-reject");
+      A.confirm({ title: "Reject this declaration?",
+        body: "The seller must resubmit. Your note should say exactly what is missing or wrong.",
+        confirmLabel: "Reject", requireNote: true, noteLabel: "Reviewer note (required, shown to seller)" }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_shop_verification")
+            .update({ status: "rejected", reviewer_note: c.note }).eq("id", idR)
+            .then(function (r) { if (r.error) throw r.error; })
+            .then(function () { return A.moderate({ target_type: "shop_verification", target_id: idR, action: "reject_verification", reason: c.note }); });
+        }, "Declaration rejected.").then(function () { refreshPills(); loaders.foodsafety(); $("fs-detail").innerHTML = ""; });
+      });
+    }
+  });
+
+  /* ================= REPORTS ================= */
+  var TARGET_LABEL = {
+    shop: "cc_shops", product: "cc_products", post: "cc_posts",
+    review: "cc_reviews", craving: "cc_cravings"
+  };
+  var TARGET_NAME_COL = { shop: "name", product: "name", post: null, review: null, craving: null };
+
+  function fetchTargetLabel(type, id) {
+    var table = TARGET_LABEL[type];
+    if (!table || !id) return Promise.resolve(null);
+    return sb().from(table).select("id" + (TARGET_NAME_COL[type] ? "," + TARGET_NAME_COL[type] : ""))
+      .eq("id", id).single().then(function (r) {
+        if (r.error || !r.data) return null;
+        var d = r.data;
+        if (TARGET_NAME_COL[type]) return d[TARGET_NAME_COL[type]];
+        if (type === "post") return "post " + String(d.id).slice(0, 8);
+        if (type === "review") return "review " + String(d.id).slice(0, 8);
+        if (type === "craving") return "craving " + String(d.id).slice(0, 8);
+        return null;
+      }).catch(function () { return null; });
+  }
+
+  loaders.reports = function () {
+    var q = sb().from("cc_reports")
+      .select("id,reporter_id,target_type,target_id,reason,details,status,priority,created_at")
+      .order("created_at", { ascending: false }).limit(100);
+    var st = $("rep-status").value, pr = $("rep-priority").value, tt = $("rep-target").value;
+    if (st) q = q.eq("status", st);
+    if (pr) q = q.eq("priority", pr);
+    if (tt) q = q.eq("target_type", tt);
+    q.then(function (r) {
+      if (r.error) throw r.error;
+      renderRows("rep-table", (r.data || []).map(function (x) {
+        return "<tr><td>" + A.esc(x.target_type) + "<br>" + shortId(x.target_id) +
+          '</td><td><strong>' + A.esc(x.reason) + "</strong>" +
+          (x.details ? "<br><span style='color:#64748b'>" + A.esc(String(x.details).slice(0, 120)) + "</span>" : "") +
+          "</td><td>" + A.badge(x.priority) + "</td><td>" + A.badge(x.status) +
+          "</td><td>" + A.timeAgo(x.created_at) + "</td><td>" +
+          '<div class="adm-btn-row"><button type="button" class="adm-btn adm-btn-sm" data-rep-view="' + x.id + '">Review</button></div>' +
+          "</td></tr>";
+      }), "No reports match these filters.");
+    }).catch(function (e) { A.toast("Could not load reports: " + e.message, "error"); });
+  };
+  $("rep-go").addEventListener("click", loaders.reports);
+
+  document.addEventListener("click", function (ev) {
+    var t = ev.target, el;
+    function has(attr) { return t.closest && t.closest("[" + attr + "]"); }
+    if ((el = has("data-rep-view"))) {
+      var id = el.getAttribute("data-rep-view");
+      sb().from("cc_reports").select("*").eq("id", id).single().then(function (r) {
+        if (r.error) throw r.error;
+        var x = r.data;
+        return fetchTargetLabel(x.target_type, x.target_id).then(function (label) {
+          $("rep-detail").innerHTML =
+            '<div class="adm-detail"><h3>Report — ' + A.esc(x.target_type) + " " + shortId(x.target_id) + "</h3>" +
+            "<dl><dt>Target</dt><dd>" + A.esc(label || "(deleted or unavailable)") + "</dd>" +
+            "<dt>Reason</dt><dd><strong>" + A.esc(x.reason) + "</strong></dd>" +
+            "<dt>Details</dt><dd>" + A.esc(x.details || "—") + "</dd>" +
+            "<dt>Priority</dt><dd>" + A.badge(x.priority) + "</dd>" +
+            "<dt>Status</dt><dd>" + A.badge(x.status) + "</dd>" +
+            "<dt>Reporter</dt><dd>" + shortId(x.reporter_id) + "</dd>" +
+            "<dt>Filed</dt><dd>" + A.fmtDate(x.created_at) + "</dd></dl>" +
+            '<div class="adm-btn-row">' +
+            '<button type="button" class="adm-btn adm-btn-sm" data-rep-reviewed="' + x.id + '">Mark reviewed</button>' +
+            '<button type="button" class="adm-btn adm-btn-sm" data-rep-dismiss="' + x.id + '">Dismiss</button>' +
+            '<button type="button" class="adm-btn adm-btn-sm adm-btn-danger" data-rep-act="' + x.id + '">Take action…</button>' +
+            '<button type="button" class="adm-btn adm-btn-sm" data-rep-close>Close</button></div></div>';
+        });
+      }).catch(function (e) { A.toast("Could not load report: " + e.message, "error"); });
+    }
+    if (has("data-rep-close")) { $("rep-detail").innerHTML = ""; return; }
+    function setReportStatus(rid, status, msg) {
+      A.run(function () {
+        return sb().from("cc_reports").update({ status: status }).eq("id", rid)
+          .then(function (r) { if (r.error) throw r.error; })
+          .then(function () { return A.audit("report." + status, "report", rid, {}); });
+      }, msg).then(function () { refreshPills(); loaders.reports(); $("rep-detail").innerHTML = ""; });
+    }
+    if ((el = has("data-rep-reviewed"))) setReportStatus(el.getAttribute("data-rep-reviewed"), "reviewed", "Marked reviewed.");
+    if ((el = has("data-rep-dismiss"))) {
+      var idD = el.getAttribute("data-rep-dismiss");
+      A.confirm({ title: "Dismiss this report?", body: "No enforcement action will be taken.",
+        confirmLabel: "Dismiss report", danger: false }).then(function (c) {
+        if (c.ok) setReportStatus(idD, "dismissed", "Report dismissed.");
+      });
+    }
+    if ((el = has("data-rep-act"))) {
+      (function (rid) {
+        sb().from("cc_reports").select("target_type,target_id,reason").eq("id", rid).single()
+          .then(function (r) {
+            if (r.error) throw r.error;
+            var x = r.data;
+            var body = '<label class="adm-field"><span>Enforcement action</span><select id="adm-act-sel">' +
+              '<option value="warn_user">warn_user — record a warning</option>' +
+              '<option value="archive_product">archive_product — delist the product</option>' +
+              '<option value="suspend_shop">suspend_shop — hide the shop</option>' +
+              '<option value="hide_review">hide_review — remove the review</option>' +
+              '<option value="hide_post">hide_post — remove the post</option>' +
+              "</select></label>" +
+              "<p>Target: <strong>" + A.esc(x.target_type) + "</strong> " + shortId(x.target_id) +
+              ". The enforcement is recorded as a moderation action; the report is marked actioned.</p>";
+            return A.confirm({ title: "Take enforcement action", body: body,
+              confirmLabel: "Apply action", requireNote: true, noteLabel: "Reason (required, recorded)" })
+              .then(function (c) {
+                if (!c.ok) return;
+                var action = document.getElementById("adm-act-sel").value;
+                A.run(function () {
+                  // Apply the underlying enforcement where the schema supports it
+                  var enforce = Promise.resolve();
+                  if (action === "archive_product" && x.target_type === "product") {
+                    enforce = sb().from("cc_products").update({ status: "archived" }).eq("id", x.target_id)
+                      .then(function (u) { if (u.error) throw u.error; });
+                  } else if (action === "suspend_shop" && x.target_type === "shop") {
+                    enforce = sb().from("cc_shops").select("status").eq("id", x.target_id).single()
+                      .then(function (sr) {
+                        var prior = (sr.data && sr.data.status) || "published";
+                        return sb().from("cc_shops").update({ status: "suspended" }).eq("id", x.target_id)
+                          .then(function (u) { if (u.error) throw u.error; return prior; });
+                      });
+                  } else if (action === "hide_review" && x.target_type === "review") {
+                    enforce = sb().from("cc_reviews").delete().eq("id", x.target_id)
+                      .then(function (u) { if (u.error) throw u.error; });
+                  } else if (action === "hide_post" && x.target_type === "post") {
+                    enforce = sb().from("cc_posts").delete().eq("id", x.target_id)
+                      .then(function (u) { if (u.error) throw u.error; });
+                  }
+                  return enforce.then(function (prior) {
+                    var details = {};
+                    if (prior && typeof prior === "string") details.prior_status = prior;
+                    return A.moderate({ target_type: x.target_type, target_id: x.target_id,
+                      action: action, reason: c.note, details: details });
+                  }).then(function () {
+                    return sb().from("cc_reports").update({ status: "actioned" }).eq("id", rid)
+                      .then(function (u) { if (u.error) throw u.error; });
+                  }).then(function () {
+                    return A.audit("report.actioned", "report", rid, { enforcement: action });
+                  });
+                }, "Action applied; report marked actioned.")
+                  .then(function () { refreshPills(); loaders.reports(); $("rep-detail").innerHTML = ""; });
+              });
+          }).catch(function (e) { A.toast("Could not load report: " + e.message, "error"); });
+      })(el.getAttribute("data-rep-act"));
+    }
+  });
+
+  /* ================= SUPPORT INBOX ================= */
+  loaders.support = function () {
+    Promise.all([
+      sb().from("cc_reports").select("id,target_type,reason,priority,status,created_at")
+        .in("status", ["open", "reviewed"]).order("created_at", { ascending: false }).limit(50),
+      sb().from("cc_appeals").select("id,user_id,body,status,created_at")
+        .eq("status", "open").order("created_at", { ascending: false }).limit(50)
+    ]).then(function (rs) {
+      var items = [];
+      (rs[0].data || []).forEach(function (x) {
+        items.push({ t: x.created_at, kind: "report", row: x });
+      });
+      (rs[1].data || []).forEach(function (x) {
+        items.push({ t: x.created_at, kind: "appeal", row: x });
+      });
+      items.sort(function (a, b) { return new Date(b.t) - new Date(a.t); });
+      if (!items.length) {
+        $("support-list").innerHTML = '<div class="adm-callout"><strong>Inbox zero.</strong> No open reports or appeals.</div>';
+        return;
+      }
+      $("support-list").innerHTML = items.map(function (it) {
+        if (it.kind === "report") {
+          var x = it.row;
+          return '<div class="adm-callout adm-callout-warn"><strong>Report</strong> ' + A.badge(x.priority) +
+            " " + A.badge(x.status) + "<br>" + A.esc(x.target_type) + " — " + A.esc(x.reason) +
+            ' <span style="color:#94a3b8">' + A.timeAgo(x.created_at) + "</span></div>";
+        }
+        var a = it.row;
+        return '<div class="adm-callout adm-callout-info"><strong>Appeal</strong><br>' +
+          A.esc(String(a.body).slice(0, 160)) + (String(a.body).length > 160 ? "…" : "") +
+          ' <span style="color:#94a3b8">' + A.timeAgo(a.created_at) + "</span></div>";
+      }).join("");
+    }).catch(function (e) { A.toast("Could not load inbox: " + e.message, "error"); });
+  };
+
+  /* ================= APPEALS ================= */
+  loaders.appeals = function () {
+    sb().from("cc_appeals")
+      .select("id,user_id,moderation_action_id,body,status,created_at")
+      .order("created_at", { ascending: false }).limit(100)
+      .then(function (r) {
+        if (r.error) throw r.error;
+        var rows = r.data || [];
+        var actIds = [...new Set(rows.map(function (x) { return x.moderation_action_id; }))];
+        var userIds = [...new Set(rows.map(function (x) { return x.user_id; }))];
+        return Promise.all([
+          actIds.length ? sb().from("cc_moderation_actions")
+            .select("id,action,target_type,target_id,reason,actor_admin_email,created_at")
+            .in("id", actIds) : Promise.resolve({ data: [] }),
+          userIds.length ? sb().from("cc_profiles").select("user_id,display_name").in("user_id", userIds)
+            : Promise.resolve({ data: [] })
+        ]).then(function (rs) {
+          var am = {}, um = {};
+          (rs[0].data || []).forEach(function (a) { am[a.id] = a; });
+          (rs[1].data || []).forEach(function (u) { um[u.user_id] = u.display_name; });
+          renderRows("app-table", rows.map(function (x) {
+            var a = am[x.moderation_action_id] || {};
+            return "<tr><td>" + A.esc(um[x.user_id] || "User") + "<br>" + shortId(x.user_id) +
+              "</td><td><code>" + A.esc(a.action || "?") + "</code> on " + A.esc(a.target_type || "?") +
+              (a.reason ? "<br><span style='color:#64748b'>" + A.esc(String(a.reason).slice(0, 100)) + "</span>" : "") +
+              "</td><td>" + A.badge(x.status) + "</td><td>" + A.timeAgo(x.created_at) +
+              '</td><td><div class="adm-btn-row"><button type="button" class="adm-btn adm-btn-sm" data-app-view="' + x.id + '">Review</button></div></td></tr>';
+          }), "No appeals filed.");
+        });
+      }).catch(function (e) { A.toast("Could not load appeals: " + e.message, "error"); });
+  };
+
+  document.addEventListener("click", function (ev) {
+    var t = ev.target, el;
+    function has(attr) { return t.closest && t.closest("[" + attr + "]"); }
+    if ((el = has("data-app-view"))) {
+      var id = el.getAttribute("data-app-view");
+      sb().from("cc_appeals").select("*").eq("id", id).single().then(function (r) {
+        if (r.error) throw r.error;
+        var x = r.data;
+        return Promise.all([
+          sb().from("cc_moderation_actions").select("*").eq("id", x.moderation_action_id).single(),
+          sb().from("cc_profiles").select("display_name").eq("user_id", x.user_id).single()
+        ]).then(function (rs) {
+          var a = rs[0].data || {}, u = (rs[1].data || {}).display_name || "User";
+          $("app-detail").innerHTML =
+            '<div class="adm-detail"><h3>Appeal from ' + A.esc(u) + "</h3>" +
+            "<dl><dt>Against</dt><dd><code>" + A.esc(a.action || "?") + "</code> on " +
+            A.esc(a.target_type || "?") + " " + shortId(a.target_id) + "</dd>" +
+            "<dt>Original reason</dt><dd>" + A.esc(a.reason || "—") + "</dd>" +
+            "<dt>Decided by</dt><dd>" + A.esc(a.actor_admin_email || "—") + " · " + A.timeAgo(a.created_at) + "</dd>" +
+            "<dt>Appeal</dt><dd>" + A.esc(x.body) + "</dd>" +
+            "<dt>Status</dt><dd>" + A.badge(x.status) + "</dd>" +
+            "<dt>Filed</dt><dd>" + A.fmtDate(x.created_at) + "</dd></dl>" +
+            (x.status === "open"
+              ? '<div class="adm-btn-row">' +
+                '<button type="button" class="adm-btn adm-btn-sm adm-btn-primary" data-app-uphold="' + x.id + '">Uphold action</button>' +
+                '<button type="button" class="adm-btn adm-btn-sm adm-btn-danger" data-app-overturn="' + x.id + '|' + A.esc(a.action || "") + '|' + (a.target_id || "") + '">Overturn action</button>' +
+                '<button type="button" class="adm-btn adm-btn-sm" data-app-close>Close</button></div>'
+              : '<button type="button" class="adm-btn adm-btn-sm" data-app-close>Close</button>') + "</div>";
+        });
+      }).catch(function (e) { A.toast("Could not load appeal: " + e.message, "error"); });
+    }
+    if (has("data-app-close")) { $("app-detail").innerHTML = ""; return; }
+    function decideAppeal(rid, decision, msg) {
+      A.confirm({ title: decision === "upheld" ? "Uphold the moderation action?" : "Overturn the moderation action?",
+        body: decision === "overturned"
+          ? "This records that the appeal succeeded. <strong>You must still reverse the original enforcement manually</strong> (e.g. unsuspend the shop in the Shops section)."
+          : "The original enforcement stands.",
+        confirmLabel: decision === "upheld" ? "Uphold" : "Overturn", danger: decision !== "upheld",
+        requireNote: true, noteLabel: "Decision note (required, recorded)" }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_appeals").update({ status: decision }).eq("id", rid)
+            .then(function (r) { if (r.error) throw r.error; })
+            .then(function () { return A.audit("appeal." + decision, "appeal", rid, { note: c.note }); });
+        }, msg).then(function () { refreshPills(); loaders.appeals(); $("app-detail").innerHTML = ""; });
+      });
+    }
+    if ((el = has("data-app-uphold"))) decideAppeal(el.getAttribute("data-app-uphold"), "upheld", "Appeal upheld — action stands.");
+    if ((el = has("data-app-overturn"))) decideAppeal(el.getAttribute("data-app-overturn").split("|")[0], "overturned", "Appeal overturned — remember to reverse the enforcement.");
+  });
+
+  /* ================= USERS ================= */
+  loaders.users = function () {
+    var q = sb().from("cc_profiles")
+      .select("user_id,display_name,city,state,is_seller,is_public,created_at")
+      .order("created_at", { ascending: false }).limit(100);
+    var nameQ = $("users-q").value.trim();
+    if (nameQ) q = q.ilike("display_name", "%" + nameQ + "%");
+    q.then(function (r) {
+      if (r.error) throw r.error;
+      var rows = r.data || [];
+      var ids = rows.map(function (x) { return x.user_id; });
+      return (ids.length
+        ? sb().from("cc_shops").select("id,user_id,name,status").in("user_id", ids)
+        : Promise.resolve({ data: [] })).then(function (sr) {
+        var sm = {};
+        (sr.data || []).forEach(function (s) { sm[s.user_id] = s; });
+        renderRows("users-table", rows.map(function (u) {
+          var s = sm[u.user_id];
+          var shopCell = s ? A.esc(s.name) + " " + A.badge(s.status) : "—";
+          var acts = '<div class="adm-btn-row"><button type="button" class="adm-btn adm-btn-sm" data-user-view="' + u.user_id + '">View</button>';
+          if (s && s.status !== "suspended") {
+            acts += '<button type="button" class="adm-btn adm-btn-sm adm-btn-danger" data-user-suspend="' + u.user_id + "|" + s.id + '">Suspend shop</button>';
+          } else if (s && s.status === "suspended") {
+            acts += '<button type="button" class="adm-btn adm-btn-sm adm-btn-primary" data-user-unsuspend="' + s.id + '">Unsuspend shop</button>';
+          }
+          return "<tr><td><strong>" + A.esc(u.display_name) + "</strong><br>" + shortId(u.user_id) +
+            "</td><td>" + A.esc([u.city, u.state].filter(Boolean).join(", ") || "—") +
+            "</td><td>" + (u.is_seller ? "yes" : "no") + (u.is_public ? "" : " (hidden)") +
+            "</td><td>" + shopCell + "</td><td>" + A.timeAgo(u.created_at) +
+            "</td><td>" + acts + "</div></td></tr>";
+        }), "No users match.");
+      });
+    }).catch(function (e) { A.toast("Could not load users: " + e.message, "error"); });
+  };
+  $("users-go").addEventListener("click", loaders.users);
+
+  document.addEventListener("click", function (ev) {
+    var t = ev.target, el;
+    function has(attr) { return t.closest && t.closest("[" + attr + "]"); }
+    if ((el = has("data-user-view"))) {
+      var uid = el.getAttribute("data-user-view");
+      Promise.all([
+        sb().from("cc_profiles").select("*").eq("user_id", uid).single(),
+        sb().from("cc_shops").select("id,name,status,created_at").eq("user_id", uid).maybeSingle()
+      ]).then(function (rs) {
+        if (rs[0].error) throw rs[0].error;
+        var u = rs[0].data, s = rs[1].data;
+        $("users-detail").innerHTML =
+          '<div class="adm-detail"><h3>' + A.esc(u.display_name) + "</h3><dl>" +
+          "<dt>User ID</dt><dd>" + A.esc(u.user_id) + "</dd>" +
+          "<dt>Location</dt><dd>" + A.esc([u.city, u.state, u.zip].filter(Boolean).join(", ") || "—") + "</dd>" +
+          "<dt>Bio</dt><dd>" + A.esc(u.bio || "—") + "</dd>" +
+          "<dt>Seller</dt><dd>" + (u.is_seller ? "yes" : "no") + "</dd>" +
+          "<dt>Profile public</dt><dd>" + (u.is_public ? "yes" : "no (hidden from public reads)") + "</dd>" +
+          "<dt>Shop</dt><dd>" + (s ? A.esc(s.name) + " " + A.badge(s.status) : "No shop") + "</dd>" +
+          "<dt>Joined</dt><dd>" + A.fmtDate(u.created_at) + "</dd></dl>" +
+          '<button type="button" class="adm-btn adm-btn-sm" data-user-close>Close</button></div>';
+      }).catch(function (e) { A.toast("Could not load user: " + e.message, "error"); });
+    }
+    if (has("data-user-close")) { $("users-detail").innerHTML = ""; return; }
+    if ((el = has("data-user-suspend"))) {
+      var parts = el.getAttribute("data-user-suspend").split("|");
+      var shopId = parts[1];
+      A.confirm({ title: "Suspend this user's shop?",
+        body: "Hides the shop from the public immediately. Recorded as an enforcement action with an audit entry.",
+        confirmLabel: "Suspend shop", requireNote: true, noteLabel: "Suspension reason (required)" }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_shops").select("status").eq("id", shopId).single().then(function (sr) {
+            var prior = (sr.data && sr.data.status) || "published";
+            return sb().from("cc_shops").update({ status: "suspended" }).eq("id", shopId)
+              .then(function (u) { if (u.error) throw u.error; })
+              .then(function () { return A.moderate({ target_type: "shop", target_id: shopId, action: "suspend_shop", reason: c.note, details: { prior_status: prior, via: "users-section" } }); });
+          });
+        }, "User's shop suspended.").then(function () { refreshPills(); loaders.users(); });
+      });
+    }
+    if ((el = has("data-user-unsuspend"))) {
+      var usId = el.getAttribute("data-user-unsuspend");
+      A.confirm({ title: "Unsuspend this shop?", body: "Restores the shop to its pre-suspension status.",
+        confirmLabel: "Unsuspend", danger: false }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_audit_logs").select("details")
+            .eq("action", "moderation.suspend_shop").eq("target_id", usId)
+            .order("created_at", { ascending: false }).limit(1).then(function (m) {
+              var back = (m.data && m.data[0] && m.data[0].details && m.data[0].details.prior_status) || "published";
+              return sb().from("cc_shops").update({ status: back }).eq("id", usId)
+                .then(function (u) { if (u.error) throw u.error; })
+                .then(function () { return A.moderate({ target_type: "shop", target_id: usId, action: "unsuspend_shop", reason: "Suspension lifted.", details: { restored_status: back } }); });
+            });
+        }, "Shop unsuspended.").then(function () { refreshPills(); loaders.users(); });
+      });
+    }
+  });
+
+  /* ================= CATEGORIES ================= */
+  function slugify(name) {
+    return String(name || "").toLowerCase().trim()
+      .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").replace(/-{2,}/g, "-");
+  }
+
+  loaders.categories = function () {
+    sb().from("cc_categories").select("id,slug,name,description,photo_url,sort_order")
+      .order("sort_order").order("name").then(function (r) {
+        if (r.error) throw r.error;
+        renderRows("cat-table", (r.data || []).map(function (c) {
+          return "<tr><td>" + c.sort_order + "</td><td><strong>" + A.esc(c.name) + "</strong></td><td><code>" +
+            A.esc(c.slug) + "</code></td><td>" + A.esc(c.description || "—") + "</td><td>" +
+            '<div class="adm-btn-row">' +
+            '<button type="button" class="adm-btn adm-btn-sm" data-cat-up="' + c.id + '|' + c.sort_order + '" title="Move up">↑</button>' +
+            '<button type="button" class="adm-btn adm-btn-sm" data-cat-down="' + c.id + '|' + c.sort_order + '" title="Move down">↓</button>' +
+            '<button type="button" class="adm-btn adm-btn-sm" data-cat-edit="' + c.id + '">Edit</button>' +
+            '<button type="button" class="adm-btn adm-btn-sm adm-btn-danger" data-cat-del="' + c.id + '|' + A.esc(c.name) + '">Delete</button>' +
+            "</div></td></tr>";
+        }), "No categories found.");
+      }).catch(function (e) { A.toast("Could not load categories: " + e.message, "error"); });
+  };
+
+  function catFormDialog(title, initial, onSave) {
+    initial = initial || {};
+    var body =
+      '<label class="adm-field"><span>Name</span><input type="text" id="adm-cat-name" value="' + A.esc(initial.name || "") + '"></label>' +
+      '<label class="adm-field"><span>Description</span><input type="text" id="adm-cat-desc" value="' + A.esc(initial.description || "") + '"></label>' +
+      '<label class="adm-field"><span>Photo URL (optional)</span><input type="text" id="adm-cat-photo" value="' + A.esc(initial.photo_url || "") + '"></label>' +
+      '<label class="adm-field"><span>Sort order</span><input type="number" id="adm-cat-order" value="' + (initial.sort_order != null ? initial.sort_order : 99) + '"></label>';
+    A.confirm({ title: title, body: body, confirmLabel: "Save category", danger: false }).then(function (c) {
+      if (!c.ok) return;
+      var name = document.getElementById("adm-cat-name").value.trim();
+      if (!name) { A.toast("Name is required.", "error"); return; }
+      onSave({
+        name: name,
+        slug: slugify(name),
+        description: document.getElementById("adm-cat-desc").value.trim() || null,
+        photo_url: document.getElementById("adm-cat-photo").value.trim() || null,
+        sort_order: parseInt(document.getElementById("adm-cat-order").value, 10) || 0
+      });
+    });
+  }
+
+  $("cat-add").addEventListener("click", function () {
+    catFormDialog("Add category", { sort_order: 99 }, function (vals) {
+      if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(vals.slug)) { A.toast("Could not make a valid slug from that name.", "error"); return; }
+      A.run(function () {
+        return sb().from("cc_categories").insert(vals).then(function (r) { if (r.error) throw r.error; })
+          .then(function () { return A.audit("category.create", "category", null, { slug: vals.slug, name: vals.name }); });
+      }, "Category added.").then(loaders.categories);
+    });
+  });
+
+  document.addEventListener("click", function (ev) {
+    var t = ev.target, el;
+    function has(attr) { return t.closest && t.closest("[" + attr + "]"); }
+    if ((el = has("data-cat-edit"))) {
+      var idE = el.getAttribute("data-cat-edit");
+      sb().from("cc_categories").select("*").eq("id", idE).single().then(function (r) {
+        if (r.error) throw r.error;
+        catFormDialog("Edit category", r.data, function (vals) {
+          A.run(function () {
+            return sb().from("cc_categories").update(vals).eq("id", idE)
+              .then(function (u) { if (u.error) throw u.error; })
+              .then(function () { return A.audit("category.update", "category", idE, { slug: vals.slug }); });
+          }, "Category updated.").then(loaders.categories);
+        });
+      });
+    }
+    if ((el = has("data-cat-del"))) {
+      var parts = el.getAttribute("data-cat-del").split("|");
+      A.confirm({ title: "Delete this category?",
+        body: "Products in <strong>" + A.esc(parts[1]) + "</strong> become uncategorized (their category is set to null). This cannot be undone.",
+        confirmLabel: "Delete category" }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_categories").delete().eq("id", parts[0])
+            .then(function (r) { if (r.error) throw r.error; })
+            .then(function () { return A.audit("category.delete", "category", parts[0], { name: parts[1] }); });
+        }, "Category deleted.").then(loaders.categories);
+      });
+    }
+    function moveCat(attr, dir) {
+      var p = el.getAttribute(attr).split("|");
+      A.run(function () {
+        return sb().from("cc_categories").update({ sort_order: parseInt(p[1], 10) + dir }).eq("id", p[0])
+          .then(function (r) { if (r.error) throw r.error; })
+          .then(function () { return A.audit("category.reorder", "category", p[0], { direction: dir > 0 ? "down" : "up" }); });
+      }, "Reordered.").then(loaders.categories);
+    }
+    if ((el = has("data-cat-up"))) moveCat("data-cat-up", -1);
+    if ((el = has("data-cat-down"))) moveCat("data-cat-down", 1);
+  });
+
+  /* ================= ANNOUNCEMENTS ================= */
+  loaders.announcements = function () {
+    sb().from("cc_announcements").select("id,title,body,audience,published_at,created_at,updated_at")
+      .order("created_at", { ascending: false }).limit(100).then(function (r) {
+        if (r.error) throw r.error;
+        renderRows("ann-table", (r.data || []).map(function (a) {
+          var live = a.published_at && new Date(a.published_at) <= new Date();
+          return "<tr><td><strong>" + A.esc(a.title) + "</strong><br><span style='color:#64748b'>" +
+            A.esc(String(a.body).slice(0, 100)) + (String(a.body).length > 100 ? "…" : "") + "</span></td><td>" +
+            A.esc(a.audience) + "</td><td>" + (live ? A.badge("published") : A.badge("draft")) +
+            "</td><td>" + A.timeAgo(a.updated_at) + "</td><td>" +
+            '<div class="adm-btn-row">' +
+            '<button type="button" class="adm-btn adm-btn-sm" data-ann-edit="' + a.id + '">Edit</button>' +
+            (live
+              ? '<button type="button" class="adm-btn adm-btn-sm" data-ann-unpub="' + a.id + '">Unpublish</button>'
+              : '<button type="button" class="adm-btn adm-btn-sm adm-btn-primary" data-ann-pub="' + a.id + '">Publish now</button>') +
+            '<button type="button" class="adm-btn adm-btn-sm adm-btn-danger" data-ann-del="' + a.id + '">Delete</button>' +
+            "</div></td></tr>";
+        }), "No announcements yet.");
+      }).catch(function (e) { A.toast("Could not load announcements: " + e.message, "error"); });
+  };
+
+  function annFormDialog(title, initial, onSave) {
+    initial = initial || {};
+    var body =
+      '<label class="adm-field"><span>Title</span><input type="text" id="adm-ann-title" value="' + A.esc(initial.title || "") + '"></label>' +
+      '<label class="adm-field"><span>Body</span><textarea id="adm-ann-body" rows="5">' + A.esc(initial.body || "") + "</textarea></label>" +
+      '<label class="adm-field"><span>Audience</span><select id="adm-ann-aud">' +
+      ["all", "sellers", "buyers"].map(function (a) {
+        return '<option value="' + a + '"' + (initial.audience === a ? " selected" : "") + ">" + a + "</option>";
+      }).join("") + "</select></label>";
+    A.confirm({ title: title, body: body, confirmLabel: "Save", danger: false }).then(function (c) {
+      if (!c.ok) return;
+      var t = document.getElementById("adm-ann-title").value.trim();
+      var b = document.getElementById("adm-ann-body").value.trim();
+      if (!t || !b) { A.toast("Title and body are required.", "error"); return; }
+      onSave({ title: t, body: b, audience: document.getElementById("adm-ann-aud").value });
+    });
+  }
+
+  $("ann-add").addEventListener("click", function () {
+    annFormDialog("New announcement", { audience: "all" }, function (vals) {
+      vals.published_at = null; // drafts until explicitly published
+      A.run(function () {
+        return sb().from("cc_announcements").insert(vals).select().single()
+          .then(function (r) { if (r.error) throw r.error; return r.data; })
+          .then(function (row) { return A.audit("announcement.create", "announcement", row.id, { title: vals.title }); });
+      }, "Announcement saved as draft.").then(loaders.announcements);
+    });
+  });
+
+  document.addEventListener("click", function (ev) {
+    var t = ev.target, el;
+    function has(attr) { return t.closest && t.closest("[" + attr + "]"); }
+    if ((el = has("data-ann-edit"))) {
+      var idE = el.getAttribute("data-ann-edit");
+      sb().from("cc_announcements").select("*").eq("id", idE).single().then(function (r) {
+        if (r.error) throw r.error;
+        annFormDialog("Edit announcement", r.data, function (vals) {
+          A.run(function () {
+            return sb().from("cc_announcements").update(vals).eq("id", idE)
+              .then(function (u) { if (u.error) throw u.error; })
+              .then(function () { return A.audit("announcement.update", "announcement", idE, { title: vals.title }); });
+          }, "Announcement updated.").then(loaders.announcements);
+        });
+      });
+    }
+    if ((el = has("data-ann-pub"))) {
+      var idP = el.getAttribute("data-ann-pub");
+      A.confirm({ title: "Publish this announcement?",
+        body: "It becomes visible to its audience immediately.", confirmLabel: "Publish now", danger: false })
+        .then(function (c) {
+          if (!c.ok) return;
+          A.run(function () {
+            return sb().from("cc_announcements").update({ published_at: new Date().toISOString() }).eq("id", idP)
+              .then(function (u) { if (u.error) throw u.error; })
+              .then(function () { return A.audit("announcement.publish", "announcement", idP, {}); });
+          }, "Announcement published.").then(loaders.announcements);
+        });
+    }
+    if ((el = has("data-ann-unpub"))) {
+      var idU = el.getAttribute("data-ann-unpub");
+      A.run(function () {
+        return sb().from("cc_announcements").update({ published_at: null }).eq("id", idU)
+          .then(function (u) { if (u.error) throw u.error; })
+          .then(function () { return A.audit("announcement.unpublish", "announcement", idU, {}); });
+      }, "Announcement unpublished.").then(loaders.announcements);
+    }
+    if ((el = has("data-ann-del"))) {
+      var idD = el.getAttribute("data-ann-del");
+      A.confirm({ title: "Delete this announcement?", body: "This cannot be undone.",
+        confirmLabel: "Delete" }).then(function (c) {
+        if (!c.ok) return;
+        A.run(function () {
+          return sb().from("cc_announcements").delete().eq("id", idD)
+            .then(function (r) { if (r.error) throw r.error; })
+            .then(function () { return A.audit("announcement.delete", "announcement", idD, {}); });
+        }, "Announcement deleted.").then(loaders.announcements);
+      });
+    }
+  });
+
+  /* ================= MODERATION LOG (read-only) ================= */
+  loaders.moderation = function () {
+    sb().from("cc_moderation_actions")
+      .select("created_at,actor_admin_email,action,target_type,target_id,reason")
+      .order("created_at", { ascending: false }).limit(200).then(function (r) {
+        if (r.error) throw r.error;
+        renderRows("mod-table", (r.data || []).map(function (m) {
+          return "<tr><td>" + A.timeAgo(m.created_at) + "</td><td>" + A.esc(m.actor_admin_email) +
+            "</td><td><code>" + A.esc(m.action) + "</code></td><td>" + targetLabel(m.target_type, m.target_id) +
+            "</td><td>" + A.esc(m.reason || "—") + "</td></tr>";
+        }), "No moderation actions recorded yet.");
+      }).catch(function (e) { A.toast("Could not load moderation log: " + e.message, "error"); });
+  };
+
+  /* ================= AUDIT LOGS (read-only) ================= */
+  loaders.audit = function () {
+    var q = sb().from("cc_audit_logs")
+      .select("created_at,actor_admin_email,action,target_type,target_id,details")
+      .order("created_at", { ascending: false }).limit(200);
+    var aq = $("audit-q").value.trim();
+    if (aq) q = q.ilike("action", "%" + aq + "%");
+    q.then(function (r) {
+      if (r.error) throw r.error;
+      renderRows("audit-table", (r.data || []).map(function (a) {
+        var det = a.details && Object.keys(a.details).length
+          ? A.esc(JSON.stringify(a.details).slice(0, 120)) : "—";
+        return "<tr><td>" + A.timeAgo(a.created_at) + "</td><td>" + A.esc(a.actor_admin_email) +
+          "</td><td><code>" + A.esc(a.action) + "</code></td><td>" + targetLabel(a.target_type, a.target_id) +
+          "</td><td>" + det + "</td></tr>";
+      }), "No audit entries match.");
+    }).catch(function (e) { A.toast("Could not load audit logs: " + e.message, "error"); });
+  };
+  $("audit-go").addEventListener("click", loaders.audit);
+
+  /* ================= SETTINGS (read-only) ================= */
+  loaders.settings = function () {
+    var ref = "";
+    try { ref = new URL(CC.SUPABASE_URL).hostname.split(".")[0]; } catch (e) {}
+    Promise.all([
+      sb().from("cc_admins").select("email,created_at").order("created_at"),
+      A.count("cc_categories", [])
+    ]).then(function (rs) {
+      var admins = (rs[0].data || []).map(function (a) {
+        return "<li><code>" + A.esc(a.email) + "</code> — added " + A.timeAgo(a.created_at) + "</li>";
+      }).join("");
+      $("settings-body").innerHTML =
+        '<div class="adm-grid">' +
+        '<div class="adm-card"><div class="adm-stat-label">Backend</div><div style="font-weight:700">' +
+        (CC.live ? "Live" : "Not live") + '</div><div class="adm-stat-sub">' + A.esc(CC.SUPABASE_URL) + "</div></div>" +
+        '<div class="adm-card"><div class="adm-stat-label">Categories seeded</div><div class="adm-stat-num">' + rs[1] +
+        '</div><div class="adm-stat-sub">expected: 12</div></div>' +
+        '<div class="adm-card"><div class="adm-stat-label">Admins</div><div class="adm-stat-num">' + (rs[0].data || []).length +
+        '</div><div class="adm-stat-sub">emails in cc_admins</div></div></div>' +
+        '<div class="adm-card" style="margin-top:14px"><h3>Admin allow-list (cc_admins)</h3><ul>' + (admins || "<li>None</li>") + "</ul>" +
+        "<p style='color:#64748b;font-size:12px'>To add an owner, run in the Supabase SQL editor:<br>" +
+        "<code>insert into public.cc_admins (email) values ('owner@example.com');</code></p></div>" +
+        '<div class="adm-card" style="margin-top:14px"><h3>Storage buckets</h3><ul>' +
+        ["cc-product-images", "cc-shop-images", "cc-message-images", "cc-review-images", "cc-craving-images", "cc-post-images"]
+          .map(function (b) { return "<li><code>" + b + "</code></li>"; }).join("") + "</ul>" +
+        "<p style='color:#64748b;font-size:12px'>All public-read; writes restricted to the uploader's own folder.</p></div>" +
+        '<div class="adm-card" style="margin-top:14px"><h3>Links</h3><ul>' +
+        '<li><a href="https://supabase.com/dashboard/project/' + A.esc(ref) + '" target="_blank" rel="noopener">Supabase dashboard</a></li>' +
+        '<li><a href="policies.html">Public policies page</a></li>' +
+        "<li>Launch checklist: <code>ops/LAUNCH-CHECKLIST.md</code> (repo)</li>" +
+        "</ul></div>";
+    }).catch(function (e) { A.toast("Could not load settings: " + e.message, "error"); });
+  };
+
+  /* ================= BOOT ================= */
+  function boot() {
+    show("adm-boot");
+    A.requireAdmin().then(function () {
+      $("adm-user-email").textContent = A.adminEmail();
+      show("adm-app");
+      refreshPills();
+      loadCatOptions().then(function () { loaders.products._catsReady = true; });
+      loaders.overview();
+    }).catch(function (e) {
+      var code = (e && e.code) || "denied";
+      if (code === "signed-out") {
+        $("adm-boot-msg").innerHTML = "You are signed out. Sign in with your owner account, then reload this page.";
+        show("adm-boot");
+      } else if (code === "offline") {
+        show("adm-offline");
+      } else {
+        show("adm-denied");
+      }
+    });
+  }
+
+  $("adm-signout").addEventListener("click", function () {
+    CC.signOut().then(function () { location.reload(); });
+  });
+  $("adm-denied-signout").addEventListener("click", function () {
+    CC.signOut().then(function () { location.reload(); });
+  });
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

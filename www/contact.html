@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="Contact CraveCorner — support information.">
+<title>Contact — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div class="cc-section" style="max-width:640px;margin:0 auto;">
+      <div class="pg-head">
+        <h1>Contact CraveCorner</h1>
+        <p class="cc-lead">We\u2019d love to hear from you.</p>
+      </div>
+      <div class="cc-card pg-about">
+        <h2>Support inbox opens at launch</h2>
+        <p>CraveCorner is in preview while we finish building. Our support inbox opens when the marketplace launches to real sellers and customers.</p>
+        <h3>Meanwhile</h3>
+        <ul class="pg-about-list">
+          <li>Browse the marketplace and tell us what you think of the design.</li>
+          <li>Read the <a href="policies.html">policies preview</a> — terms, privacy, community guidelines, and food-safety disclosures.</li>
+          <li>Sellers: see <a href="create.html">how selling will work</a> when onboarding opens in Stage 2.</li>
+        </ul>
+        <div class="pg-shop-actions">
+          <a class="cc-btn cc-btn-primary" href="explore.html">Explore the marketplace</a>
+          <a class="cc-btn cc-btn-outline" href="policies.html">Read policies</a>
+        </div>
+        <p class="cc-small cc-muted" style="margin-top:16px;">No contact form here on purpose — a form with no inbox behind it would be fake functionality.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<!-- STAGE 4: Supabase client (frontend contract: before app.js) -->
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/app.js"></script>
+<!-- STAGE 4: notification bell badge + dropdown (hooks the header; app.js untouched) -->
+<script src="assets/js/cc-notify.js"></script>
+<script>
+(function () {
+  'use strict';
+  /* Shared chrome (header/footer/demo banner) is rendered by
+     assets/js/app.js on DOMContentLoaded — set the active nav
+     before that fires. */
+  window.CC_ACTIVE_NAV = 'home';
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

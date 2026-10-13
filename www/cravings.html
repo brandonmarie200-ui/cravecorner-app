@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="CraveCorner cravings — tell local cooks what you're hungry for.">
+<title>Cravings — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+<!-- Stage 5: live cravings components (additive — no Stage 1 styles changed) -->
+<link rel="stylesheet" href="assets/css/cc-stage5.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div class="pg-head">
+      <h1>Cravings</h1>
+      <p class="cc-lead">Hungry for something specific? Cravings let local cooks know what the neighborhood wants.</p>
+    </div>
+
+    <div class="pg-craving-hero">
+      <h2>Have a craving?</h2>
+      <p>Post what you're dreaming about — the dish, when you need it, and what you'd pay. Nearby cooks can claim it and make it happen.</p>
+      <button type="button" class="cc-btn cc-btn-primary" id="pg-post-craving">
+        <span data-icon="plus" aria-hidden="true"></span>Post a craving
+      </button>
+    </div>
+
+    <div class="pg-filter-block" style="margin-bottom: var(--cc-space-5);">
+      <div class="pg-filter-label" id="pg-status-label">Filter by status</div>
+      <div class="cc-pill-row" role="group" aria-labelledby="pg-status-label" id="pg-status-pills"></div>
+    </div>
+
+    <div class="pg-cravings" id="pg-cravings" aria-live="polite" aria-label="Cravings list"></div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<!-- Stage 5: live backend client + shared live helpers (no-ops when not live) -->
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/cc-community.js"></script>
+<script src="assets/js/cc-cravings.js"></script>
+<script src="assets/js/app.js"></script>
+<!-- STAGE 4: notification bell badge + dropdown (hooks the header; app.js untouched) -->
+<script src="assets/js/cc-notify.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var main = document.getElementById('cc-main');
+  function fatal(msg) {
+    main.innerHTML = '<div class="cc-container cc-section"><div class="cc-alert cc-alert-danger" role="alert">' + msg + '</div></div>';
+  }
+  if (!window.CC || !window.CC_DEMO) {
+    fatal('CraveCorner could not load. Check your connection and reload the page.');
+    return;
+  }
+  var CC = window.CC;
+  var D = window.CC_DEMO;
+
+  /* Shared chrome (header/footer/demo banner) is rendered by
+     assets/js/app.js on DOMContentLoaded — set the active nav
+     before that fires. */
+  window.CC_ACTIVE_NAV = 'cravings';
+
+  var slots = document.querySelectorAll('[data-icon]');
+  for (var si = 0; si < slots.length; si++) {
+    (function (el) {
+      var tmp = document.createElement('span');
+      tmp.innerHTML = CC.icon(el.getAttribute('data-icon'));
+      if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+    })(slots[si]);
+  }
+
+  function norm(s) { return String(s == null ? '' : s).toLowerCase(); }
+
+  var STATUSES = ['all', 'open', 'found', 'closed'];
+  var status = 'open';
+  var pillsEl = document.getElementById('pg-status-pills');
+  var listEl = document.getElementById('pg-cravings');
+
+  function countFor(s) {
+    var all = D.CRAVINGS || [];
+    if (s === 'all') return all.length;
+    return all.filter(function (c) { return norm(c.status) === s; }).length;
+  }
+
+  function renderPills() {
+    pillsEl.innerHTML = STATUSES.map(function (s) {
+      var label = s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1);
+      return '<button type="button" class="cc-pill" data-status="' + s + '" aria-pressed="' + (status === s) + '">' +
+        CC.esc(label) + ' <span class="cc-caption" aria-hidden="true">(' + countFor(s) + ')</span></button>';
+    }).join('');
+  }
+
+  function render() {
+    var all = D.CRAVINGS || [];
+    var list = status === 'all' ? all.slice() : all.filter(function (c) { return norm(c.status) === status; });
+
+    if (!list.length) {
+      var label = status === 'all' ? '' : ' ' + status;
+      listEl.innerHTML = CC.states.empty({
+        icon: 'clipboard',
+        title: 'No' + label + ' cravings',
+        body: 'Nothing here in the preview yet. Check another status — or post your own craving once posting opens.',
+        actionLabel: 'View open cravings',
+        actionHref: 'cravings.html'
+      });
+      return;
+    }
+    listEl.innerHTML = list.map(function (c) { return CC.cravingCard(c); }).join('');
+  }
+
+  pillsEl.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-status]');
+    if (!btn) return;
+    status = btn.getAttribute('data-status');
+    renderPills();
+    render();
+  });
+
+  document.getElementById('pg-post-craving').addEventListener('click', function () {
+    CC.honestModal('Posting arrives in Stage 5',
+      '<p>Craving posts — with needed-by dates, budgets, and cook matching — are part of Stage 5 (community &amp; cravings posting), which has not launched yet.</p>' +
+      '<p>The listings on this page are samples for design review. CraveCorner never shows street addresses — only city and state.</p>');
+  });
+
+  renderPills();
+  render();
+})();
+</script>
+<script>
+/* ==========================================================================
+   Stage 5 — LIVE cravings board (appended 2026-10-11; Stage 1 code above is
+   untouched). When the backend is live (CC.live), CC5Cravings.initBoard
+   takes over the status pills, the list, and the "Post a craving" button
+   with real Supabase data (cc_cravings / cc_craving_replies):
+     - Filters: Open / Found / Closed / Past (open + needed_by < today).
+     - Post-a-craving form with photo upload to the cc-craving-images bucket.
+     - Sellers get one public reply per craving (DB UNIQUE, error surfaced
+       honestly); authors can mark Found / Closed / Delete.
+     - Only city/state are ever displayed — never private addresses.
+   When the backend is NOT live, this block returns early and the Stage 1
+   demo board above runs exactly as before.
+   ========================================================================== */
+(function () {
+  'use strict';
+  if (!window.CC || !window.CC5 || !window.CC5Cravings) return;
+  var CC = window.CC;
+
+  CC.ready.then(function (st) {
+    if (!st.live) return; /* demo path stays exactly as Stage 1 */
+    window.CC5Cravings.initBoard({
+      listEl: document.getElementById('pg-cravings'),
+      pillsEl: document.getElementById('pg-status-pills'),
+      newBtn: document.getElementById('pg-post-craving')
+    });
+  });
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

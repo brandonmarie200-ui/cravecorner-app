@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="CraveCorner notifications — order updates, messages, quotes, and more.">
+<title>Notifications — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages + Stage 4 -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+<link rel="stylesheet" href="assets/css/stage4.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div id="s4-notif-root" aria-live="polite"></div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<!-- Stage 4: Supabase client + shared order/messaging/notification logic -->
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/cc-orders.js"></script>
+<script src="assets/js/cc-messages.js"></script>
+<script src="assets/js/cc-notify.js"></script>
+<script>
+/* ==========================================================================
+   Stage 4 — notifications.html: the notification center.
+   Rows are trigger-written by the DB (order updates, messages, quotes…);
+   this UI only reads + marks read + deletes. Email toggles are shown
+   honestly as "coming when email is configured" — nothing is ever sent.
+   ========================================================================== */
+(function () {
+  'use strict';
+  if (!window.CC) return;
+  var CC = window.CC;
+  window.CC_ACTIVE_NAV = 'messages';
+
+  function esc(s) { return CC.esc(s); }
+  var PAGE = 25;
+
+  window.CC_PAGE_INIT = function () {
+    var root = document.getElementById('s4-notif-root');
+    root.innerHTML = '<div class="cc-loading" role="status">Loading notifications…</div>';
+    CC.ready.then(function (r) {
+      if (!r.live || !CC.sb) { emptyState(root, 'Notifications need the live marketplace',
+        'This preview isn\u2019t connected to the CraveCorner backend yet. When it is, order updates, messages, quotes, and reminders land here.'); return; }
+      if (!r.user) { emptyState(root, 'Sign in to see notifications',
+        'Notifications need a CraveCorner account, and accounts arrive in Stage 2 — sign-ups aren\u2019t open yet.'); return; }
+      bootLive(root);
+    }).catch(function (e) {
+      root.innerHTML = CC.states.error({ title: 'Could not load notifications', body: String((e && e.message) || e) });
+    });
+  };
+
+  function emptyState(root, title, body) {
+    root.innerHTML = '<div class="s4-page-head"><h1 class="cc-h2">Notifications</h1></div>' +
+      CC.states.empty({ icon: 'bell', title: title, body: body,
+        actionLabel: 'Explore the marketplace', actionHref: 'explore.html' });
+  }
+
+  function bootLive(root) {
+    var state = { items: [], offset: 0, done: false, filter: 'all', tab: 'all' };
+    render(root, state);
+    loadMore(root, state);
+    /* Live arrivals: prepend when the bell helper surfaces them. */
+    CC.onNotificationArrived = function (n) {
+      if (!CC.notifTypeEnabled(n.type)) return;
+      state.items.unshift(n);
+      renderList(root, state);
+    };
+  }
+
+  function render(root, state) {
+    root.innerHTML =
+      '<div class="s4-page-head"><h1 class="cc-h2 s4-grow">Notifications</h1>' +
+      '<button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" id="s4-mark-all">Mark all read</button></div>' +
+      '<div class="s4-tabs" role="tablist" aria-label="Notification views" style="max-width:420px">' +
+        '<button type="button" class="s4-tab is-active" data-ntab="all" role="tab" aria-selected="true">All</button>' +
+        '<button type="button" class="s4-tab" data-ntab="unread" role="tab" aria-selected="false">Unread</button>' +
+        '<button type="button" class="s4-tab" data-ntab="prefs" role="tab" aria-selected="false">Preferences</button>' +
+      '</div>' +
+      '<div id="s4-notif-body"></div>';
+    Array.prototype.forEach.call(root.querySelectorAll('[data-ntab]'), function (btn) {
+      btn.addEventListener('click', function () {
+        state.tab = btn.getAttribute('data-ntab');
+        Array.prototype.forEach.call(root.querySelectorAll('[data-ntab]'), function (b) {
+          var on = b === btn;
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        if (state.tab === 'prefs') renderPrefs(root);
+        else renderList(root, state);
+      });
+    });
+    root.querySelector('#s4-mark-all').addEventListener('click', function (e) {
+      var btn = e.currentTarget;
+      btn.disabled = true;
+      CC.markAllNotificationsRead().then(function () {
+        btn.disabled = false;
+        state.items.forEach(function (n) { n.read_at = n.read_at || new Date().toISOString(); });
+        renderList(root, state);
+      });
+    });
+  }
+
+  function loadMore(root, state) {
+    if (state.done) return;
+    CC.getNotifications({ limit: PAGE, offset: state.offset }).then(function (rows) {
+      state.items = state.items.concat(rows);
+      state.offset += rows.length;
+      if (rows.length < PAGE) state.done = true;
+      if (state.tab !== 'prefs') renderList(root, state);
+    });
+  }
+
+  function notifRowHtml(n) {
+    var meta = CC.notifMeta(n.type);
+    var unread = !n.read_at;
+    return '<div class="s4-notif' + (unread ? ' is-unread' : '') + '" data-notif="' + esc(n.id) + '" role="button" tabindex="0" ' +
+      'aria-label="' + esc(n.title || meta.label) + (unread ? ', unread' : '') + '">' +
+      '<span class="s4-notif-icon">' + CC.icon(meta.icon) + '</span>' +
+      '<span class="s4-notif-body"><span class="s4-notif-title">' + esc(n.title || meta.label) + '</span>' +
+      (n.body ? '<span class="s4-notif-text" style="display:block">' + esc(n.body) + '</span>' : '') +
+      '<span class="s4-notif-time" style="display:block">' + esc(CC.relativeTime(n.created_at)) + ' · ' + esc(meta.label) + '</span></span>' +
+      (unread ? '<span class="s4-notif-dot" aria-hidden="true"></span>' : '') +
+      '<button type="button" class="s4-iconbtn" data-del="' + esc(n.id) + '" aria-label="Delete notification" ' +
+        'style="width:36px;height:36px;flex:none">' + CC.icon('delete') + '</button>' +
+    '</div>';
+  }
+
+  function renderList(root, state) {
+    var body = root.querySelector('#s4-notif-body');
+    if (!body) return;
+    var items = state.items.filter(function (n) { return CC.notifTypeEnabled(n.type); });
+    if (state.tab === 'unread') items = items.filter(function (n) { return !n.read_at; });
+    var html;
+    if (!items.length && state.done) {
+      html = CC.states.empty({ icon: 'bell',
+        title: state.tab === 'unread' ? 'Nothing unread' : 'No notifications yet',
+        body: state.tab === 'unread'
+          ? 'You\u2019re all caught up.'
+          : 'Order updates, messages, quotes, and reminders will show up here.' });
+    } else {
+      html = '<div class="s4-notif-list">' + items.map(notifRowHtml).join('') + '</div>';
+      if (!state.done && state.tab === 'all') {
+        html += '<div style="text-align:center;margin-top:1rem"><button type="button" class="cc-btn cc-btn-secondary" id="s4-more">Load more</button></div>';
+      }
+    }
+    body.innerHTML = html;
+    var more = body.querySelector('#s4-more');
+    if (more) more.addEventListener('click', function () { loadMore(root, state); });
+    Array.prototype.forEach.call(body.querySelectorAll('[data-del]'), function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = btn.getAttribute('data-del');
+        CC.deleteNotification(id).then(function () {
+          state.items = state.items.filter(function (n) { return n.id !== id; });
+          renderList(root, state);
+        });
+      });
+    });
+    Array.prototype.forEach.call(body.querySelectorAll('[data-notif]'), function (row) {
+      function open() {
+        var id = row.getAttribute('data-notif');
+        var n = null;
+        for (var i = 0; i < state.items.length; i++) if (state.items[i].id === id) n = state.items[i];
+        if (!n) return;
+        CC.markNotificationRead(id);
+        CC.notifDeepLink(n).then(function (href) { window.location.href = href; });
+      }
+      row.addEventListener('click', open);
+      row.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+      });
+    });
+  }
+
+  /* ---------------- preferences ---------------- */
+
+  var EMAIL_NOTE = 'Email notifications are coming when email is configured — nothing is sent by email today.';
+
+  function renderPrefs(root) {
+    var body = root.querySelector('#s4-notif-body');
+    var prefs = CC.notifPrefs();
+    var rows = CC.notifTypes().map(function (t) {
+      var meta = CC.notifMeta(t);
+      var on = prefs[t];
+      return '<div class="s4-pref-row"><span class="s4-notif-icon">' + CC.icon(meta.icon) + '</span>' +
+        '<span class="s4-grow"><strong>' + esc(meta.label) + '</strong>' +
+        '<span>' + esc(prefBlurb(t)) + '</span></span>' +
+        '<label class="s4-switch"><input type="checkbox" data-pref="' + esc(t) + '"' + (on ? ' checked' : '') +
+        ' aria-label="In-app notifications for ' + esc(meta.label) + '"><span class="s4-track"></span></label></div>';
+    }).join('');
+    var emailRows = CC.notifTypes().map(function (t) {
+      var meta = CC.notifMeta(t);
+      return '<div class="s4-pref-row"><span class="s4-notif-icon">' + CC.icon(meta.icon) + '</span>' +
+        '<span class="s4-grow"><strong>' + esc(meta.label) + '</strong><span>' + esc(EMAIL_NOTE) + '</span></span>' +
+        '<label class="s4-switch"><input type="checkbox" disabled aria-label="Email notifications for ' + esc(meta.label) + ', not available yet">' +
+        '<span class="s4-track"></span></label></div>';
+    }).join('');
+    body.innerHTML =
+      '<div class="s4-pref-group"><h2 class="s4-section-title">In-app notifications</h2>' +
+      '<p class="cc-caption" style="margin-bottom:.5rem">Choose what shows up in your bell and notification center.</p>' + rows + '</div>' +
+      '<div class="s4-pref-group"><h2 class="s4-section-title">Email notifications</h2>' + emailRows + '</div>';
+    Array.prototype.forEach.call(body.querySelectorAll('[data-pref]'), function (input) {
+      input.addEventListener('change', function () {
+        CC.setNotifPref(input.getAttribute('data-pref'), input.checked);
+      });
+    });
+  }
+
+  function prefBlurb(t) {
+    return {
+      message: 'Someone sends you a message',
+      order: 'Order requests and status changes',
+      custom_order: 'Custom order requests and updates',
+      quote: 'A seller sends you a quote',
+      craving: 'Replies to your cravings',
+      review: 'New reviews on your shop',
+      safety: 'Safety notices from CraveCorner',
+      announcement: 'Announcements from CraveCorner'
+    }[t] || 'Notifications of this type';
+  }
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

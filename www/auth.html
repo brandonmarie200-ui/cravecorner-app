@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="Sign up or log in to CraveCorner — save favorites, follow shops, and start selling.">
+<title>Sign in — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div class="cc-section" style="max-width: 520px; margin: 0 auto;">
+      <p class="cc-eyebrow" style="text-align:center;">Accounts</p>
+      <h1 class="cc-h1" style="text-align:center;">Welcome to CraveCorner</h1>
+      <p class="cc-muted" style="text-align:center;">Save favorites, follow your favorite cooks, and track order requests — all in one place.</p>
+
+      <div id="pg-auth-root">
+        <div class="cc-card" aria-busy="true">
+          <p class="cc-muted">Loading…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/cc-auth.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* Shared chrome (header/footer/demo banner) is rendered by
+     assets/js/app.js on DOMContentLoaded — set the active nav
+     before that fires. */
+  window.CC_ACTIVE_NAV = 'profile';
+
+  var root = document.getElementById('pg-auth-root');
+  var CC = window.CC;
+  var Auth = CC.Auth;
+  var esc = Auth.escapeHtml;
+  var params = new URLSearchParams(window.location.search);
+  var nextUrl = params.get('next') || 'profile.html';
+  var startTab = params.get('tab') === 'login' ? 'login' : 'signup';
+
+  function hydrateIcons(scope) {
+    var slots = scope.querySelectorAll('[data-icon]');
+    for (var i = 0; i < slots.length; i++) {
+      (function (el) {
+        var tmp = document.createElement('span');
+        tmp.innerHTML = CC.icon(el.getAttribute('data-icon'));
+        if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+      })(slots[i]);
+    }
+  }
+
+  function bannerHtml() {
+    return '<div data-form-banner aria-live="polite"></div>';
+  }
+
+  function tabsHtml(active) {
+    function tab(which, label) {
+      return '<button type="button" class="pg-tab" role="tab" data-atab="' + which + '"' +
+        ' aria-selected="' + (active === which ? 'true' : 'false') + '">' + label + '</button>';
+    }
+    return '<div class="pg-tabs" role="tablist" aria-label="Sign in or create an account" style="margin-bottom: var(--cc-space-5);">' +
+      tab('signup', 'Sign up') + tab('login', 'Log in') + tab('forgot', 'Forgot password') + '</div>';
+  }
+
+  function signupFormHtml() {
+    return '<form id="pg-signup" novalidate>' +
+      bannerHtml() +
+      '<div class="cc-field"><label class="cc-label" for="su-name">Display name <span class="cc-req" aria-hidden="true">*</span></label>' +
+      '<input class="cc-input" id="su-name" name="name" type="text" autocomplete="name" maxlength="60" required placeholder="e.g. Marisol\u2019s Kitchen fan">' +
+      '<p class="cc-hint">This is the name other people see on your profile.</p></div>' +
+      '<div class="cc-field"><label class="cc-label" for="su-email">Email <span class="cc-req" aria-hidden="true">*</span></label>' +
+      '<input class="cc-input" id="su-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>' +
+      '<div class="cc-field"><label class="cc-label" for="su-pass">Password <span class="cc-req" aria-hidden="true">*</span></label>' +
+      '<input class="cc-input" id="su-pass" name="password" type="password" autocomplete="new-password" required minlength="6" placeholder="At least 6 characters">' +
+      '<p class="cc-hint">At least 6 characters. Use something unique to CraveCorner.</p></div>' +
+      '<div class="cc-field"><label class="cc-label" for="su-loc">General location</label>' +
+      '<input class="cc-input" id="su-loc" name="location" type="text" autocomplete="address-level2" maxlength="80" placeholder="City, ST or ZIP — e.g. Gonzales, TX">' +
+      '<p class="cc-hint">Helps us show you nearby food. Only the general area is ever shown to others.</p></div>' +
+      '<button type="submit" class="cc-btn cc-btn-primary cc-btn-block cc-btn-lg" data-submit>Create account</button>' +
+      '<p class="cc-small cc-muted" style="margin-top: var(--cc-space-3);">By signing up you agree to our <a href="policies.html">policies</a>.</p>' +
+      '</form>';
+  }
+
+  function loginFormHtml() {
+    return '<form id="pg-login" novalidate>' +
+      bannerHtml() +
+      '<div class="cc-field"><label class="cc-label" for="li-email">Email <span class="cc-req" aria-hidden="true">*</span></label>' +
+      '<input class="cc-input" id="li-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>' +
+      '<div class="cc-field"><label class="cc-label" for="li-pass">Password <span class="cc-req" aria-hidden="true">*</span></label>' +
+      '<input class="cc-input" id="li-pass" name="password" type="password" autocomplete="current-password" required placeholder="Your password"></div>' +
+      '<button type="submit" class="cc-btn cc-btn-primary cc-btn-block cc-btn-lg" data-submit>Log in</button>' +
+      '</form>';
+  }
+
+  function forgotFormHtml() {
+    return '<form id="pg-forgot" novalidate>' +
+      bannerHtml() +
+      '<p class="cc-muted">Enter the email you signed up with and we\u2019ll send you a link to reset your password.</p>' +
+      '<div class="cc-field"><label class="cc-label" for="fp-email">Email <span class="cc-req" aria-hidden="true">*</span></label>' +
+      '<input class="cc-input" id="fp-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>' +
+      '<button type="submit" class="cc-btn cc-btn-primary cc-btn-block cc-btn-lg" data-submit>Send reset link</button>' +
+      '</form>';
+  }
+
+  function renderTab(which) {
+    var card = root.querySelector('.cc-card');
+    card.innerHTML = tabsHtml(which) +
+      (which === 'signup' ? signupFormHtml() : which === 'login' ? loginFormHtml() : forgotFormHtml());
+    hydrateIcons(card);
+    wireForms(card, which);
+  }
+
+  function setBusy(form, busy, label) {
+    var btn = form.querySelector('[data-submit]');
+    if (!btn) return;
+    btn.disabled = busy;
+    btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+    if (busy) { btn.dataset.label = btn.textContent; btn.textContent = 'Working…'; }
+    else if (btn.dataset.label) { btn.textContent = btn.dataset.label; }
+  }
+
+  function validEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+
+  function wireForms(card, which) {
+    var tabs = card.querySelectorAll('[data-atab]');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].addEventListener('click', function () { renderTab(this.getAttribute('data-atab')); });
+    }
+
+    if (which === 'signup') {
+      var f = card.querySelector('#pg-signup');
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        Auth.clearAllErrors(f);
+        var nameEl = document.getElementById('su-name'), emailEl = document.getElementById('su-email'),
+            passEl = document.getElementById('su-pass'), locEl = document.getElementById('su-loc');
+        var name = nameEl.value.trim(), email = emailEl.value.trim(), pass = passEl.value, loc = locEl.value.trim();
+        var ok = true;
+        if (name.length < 2) { Auth.setFieldError(nameEl, 'Please enter a display name (2+ characters).'); ok = false; }
+        if (!validEmail(email)) { Auth.setFieldError(emailEl, 'Enter a valid email address.'); ok = false; }
+        if (pass.length < 6) { Auth.setFieldError(passEl, 'Password must be at least 6 characters.'); ok = false; }
+        if (!ok) return;
+        setBusy(f, true);
+        /* Parse "City, ST" or ZIP into city/state/zip for the profile row. */
+        var city = '', state = '', zip = '';
+        var m = loc.match(/^(.+?),\s*([A-Za-z]{2})$/);
+        if (m) { city = m[1].trim(); state = m[2].toUpperCase(); }
+        else if (/^\d{5}(-\d{4})?$/.test(loc)) { zip = loc; }
+        else if (loc) { city = loc; }
+        CC.signUp(email, pass, name).then(function (data) {
+          var user = (data && data.user) || null;
+          var session = (data && data.session) || null;
+          var patch = { display_name: name };
+          if (city) patch.city = city;
+          if (state) patch.state = state;
+          if (zip) patch.zip = zip;
+          var done = function () {
+            if (session || (CC.user && CC.user.id)) {
+              window.location.replace(nextUrl);
+            } else {
+              /* Email confirmation required: no session yet. Honest "check your email" state. */
+              card.innerHTML = '<div class="cc-empty">' +
+                '<div class="cc-empty-art">' + CC.icon('message') + '</div>' +
+                '<p class="cc-empty-title">Check your email</p>' +
+                '<p class="cc-empty-text">We sent a confirmation link to <strong>' + esc(email) + '</strong>. ' +
+                'Click it to finish creating your account, then come back and log in.</p>' +
+                '<div class="cc-empty-actions"><button type="button" class="cc-btn cc-btn-secondary" id="pg-back-login">Back to log in</button></div></div>';
+              hydrateIcons(card);
+              document.getElementById('pg-back-login').addEventListener('click', function () { renderTab('login'); });
+            }
+          };
+          if (user && user.id) {
+            return CC.sb.from('cc_profiles').update(patch).eq('user_id', user.id).then(function () { done(); });
+          }
+          done();
+        }).catch(function (err) {
+          setBusy(f, false);
+          Auth.formError(f, Auth.friendlyAuthError(err));
+        });
+      });
+    } else if (which === 'login') {
+      var lf = card.querySelector('#pg-login');
+      lf.addEventListener('submit', function (e) {
+        e.preventDefault();
+        Auth.clearAllErrors(lf);
+        var liEmailEl = document.getElementById('li-email'), liPassEl = document.getElementById('li-pass');
+        var email = liEmailEl.value.trim(), pass = liPassEl.value;
+        var ok = true;
+        if (!validEmail(email)) { Auth.setFieldError(liEmailEl, 'Enter a valid email address.'); ok = false; }
+        if (!pass) { Auth.setFieldError(liPassEl, 'Enter your password.'); ok = false; }
+        if (!ok) return;
+        setBusy(lf, true);
+        CC.signIn(email, pass).then(function () {
+          window.location.replace(nextUrl);
+        }).catch(function (err) {
+          setBusy(lf, false);
+          Auth.formError(lf, Auth.friendlyAuthError(err));
+        });
+      });
+    } else {
+      var ff = card.querySelector('#pg-forgot');
+      ff.addEventListener('submit', function (e) {
+        e.preventDefault();
+        Auth.clearAllErrors(ff);
+        var fpEmailEl = document.getElementById('fp-email');
+        var email = fpEmailEl.value.trim();
+        if (!validEmail(email)) { Auth.setFieldError(fpEmailEl, 'Enter a valid email address.'); return; }
+        setBusy(ff, true);
+        CC.resetPassword(email).then(function () {
+          card.innerHTML = '<div class="cc-empty">' +
+            '<div class="cc-empty-art">' + CC.icon('check') + '</div>' +
+            '<p class="cc-empty-title">Reset link sent</p>' +
+            '<p class="cc-empty-text">If an account exists for <strong>' + esc(email) + '</strong>, a password-reset link is on its way. Check your inbox (and spam folder).</p>' +
+            '<div class="cc-empty-actions"><button type="button" class="cc-btn cc-btn-secondary" id="pg-back-login2">Back to log in</button></div></div>';
+          hydrateIcons(card);
+          document.getElementById('pg-back-login2').addEventListener('click', function () { renderTab('login'); });
+        }).catch(function (err) {
+          setBusy(ff, false);
+          Auth.formError(ff, Auth.friendlyAuthError(err));
+        });
+      });
+    }
+  }
+
+  function renderSignedIn(user) {
+    var name = (user.user_metadata && user.user_metadata.display_name) || user.email || 'there';
+    root.innerHTML = '<div class="cc-card"><div class="cc-empty">' +
+      '<div class="cc-empty-art">' + CC.icon('user') + '</div>' +
+      '<p class="cc-empty-title">You\u2019re signed in</p>' +
+      '<p class="cc-empty-text">Signed in as <strong>' + esc(name) + '</strong> (' + esc(user.email || '') + ').</p>' +
+      '<div class="cc-empty-actions">' +
+      '<a class="cc-btn cc-btn-primary" href="' + esc(nextUrl) + '">Continue</a>' +
+      '<button type="button" class="cc-btn cc-btn-outline" id="pg-signout">Sign out</button>' +
+      '</div></div></div>';
+    hydrateIcons(root);
+    document.getElementById('pg-signout').addEventListener('click', function () {
+      CC.signOut().then(function () { window.location.reload(); });
+    });
+  }
+
+  function renderDemo() {
+    root.innerHTML = '<div class="cc-card"><div class="cc-empty">' +
+      '<div class="cc-empty-art">' + CC.icon('user') + '</div>' +
+      '<p class="cc-eyebrow">Accounts aren\u2019t open yet</p>' +
+      '<p class="cc-empty-title">Sign-ups launch with the backend</p>' +
+      '<p class="cc-empty-text">CraveCorner\u2019s database isn\u2019t connected yet, so accounts can\u2019t be created right now. ' +
+      'Nothing here is fake — we\u2019d rather show you this than a sign-up form that goes nowhere.</p>' +
+      '<div class="cc-empty-actions"><a class="cc-btn cc-btn-secondary" href="explore.html">Explore the marketplace</a></div>' +
+      '</div></div>';
+    hydrateIcons(root);
+  }
+
+  CC.ready.then(function (r) {
+    if (!r.live) { renderDemo(); return; }
+    if (r.user) { renderSignedIn(r.user); return; }
+    root.innerHTML = '<div class="cc-card"></div>';
+    renderTab(startTab);
+  });
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

@@ -1,0 +1,878 @@
+/* ==========================================================================
+   CraveCorner — Design System v1.0 (Stage 1 foundation)
+   "Find your craving. Support someone local."
+   --------------------------------------------------------------------------
+   Mobile-first. 70% neutrals / 20% pink / 10% accents.
+   Hard rules baked in: never pale-pink text on white, never white text on
+   pale yellow — all text/background pairings below pass WCAG AA (4.5:1) for
+   small text unless noted as large-text/icon-only.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. DESIGN TOKENS
+   -------------------------------------------------------------------------- */
+:root {
+  /* -- Brand ---------------------------------------------------------------
+     #F45B83 is the brand primary. White text on #F45B83 is only 3.1:1, so it
+     FAILS WCAG AA for normal text. Rule: anything that carries text on a
+     pink fill (buttons, badges, active pills) uses --cc-pink-deep (#D3315C,
+     4.8:1 with white). #F45B83 itself is reserved for icons, large display
+     type (>=24px bold / 18.66px bold passes at 3:1), borders, and graphics. */
+  --cc-pink:        #F45B83;  /* Crave Pink — brand primary (graphics/icons/large type) */
+  --cc-pink-50:     #FDE9EF;  /* pale pink — BACKGROUNDS ONLY, never text on white */
+  --cc-pink-100:    #FBD3DE;
+  --cc-pink-200:    #F7A8BE;
+  --cc-pink-deep:   #D3315C;  /* text-safe pink: white on this = 4.8:1 */
+  --cc-pink-700:    #B02850;  /* hover/pressed for pink-deep fills */
+  --cc-pink-ink:    #8E1F40;  /* small pink text on pink-50 / white (7:1) */
+
+  --cc-mango:       #FFC65B;  /* Mango Yellow — badges, highlights, ratings */
+  --cc-mango-50:    #FFF7E4;
+  --cc-mango-200:   #FFDE9C;
+  --cc-mango-ink:   #7A5410;  /* small text on mango-50 (6.9:1) */
+
+  --cc-mint:        #A8DDB5;  /* Fresh Mint — "Ready Today" badge, success fills */
+  --cc-mint-50:     #EFF9F1;
+  --cc-mint-200:    #CDEED6;
+  --cc-mint-ink:    #1E5A2E;  /* small text on mint (5.4:1) */
+
+  --cc-lilac:       #B9A6E8;  /* Soft Lilac — info accents, category tints */
+  --cc-lilac-50:    #F2EEFB;
+  --cc-lilac-200:   #D9CDF3;
+  --cc-lilac-ink:   #4A3D7A;  /* small text on lilac-50 (8.2:1) */
+
+  --cc-cream:       #FFF9F3;  /* Vanilla Cream — page background */
+  --cc-cream-deep:  #F8EEE1;  /* recessed surfaces, image placeholders */
+  --cc-white:       #FFFFFF;  /* cards, sheets, inputs */
+  --cc-border:      #F0E2D2;  /* warm hairline borders */
+  --cc-border-soft: #F7ECE0;
+
+  --cc-cocoa:       #342B32;  /* Cocoa Charcoal — primary text (15.9:1 on cream) */
+  --cc-cocoa-soft:  #5D4F56;  /* secondary text (7.4:1 on cream) */
+  --cc-cocoa-mute:  #8B7C84;  /* muted/placeholder (4.6:1 on cream — large or
+                                 non-essential text only; body copy uses soft) */
+
+  /* -- Semantic ------------------------------------------------------------ */
+  --cc-danger:      #C93A3A;  /* white on this = 5.1:1 */
+  --cc-danger-50:   #FDECEC;
+  --cc-danger-ink:  #9E2B2B;
+  --cc-focus:       #D3315C;  /* focus ring = pink-deep, 4.8:1 on white */
+
+  /* -- Typography ---------------------------------------------------------- */
+  --cc-font-head: "Plus Jakarta Sans", "Inter", system-ui, -apple-system,
+                  "Segoe UI", sans-serif;
+  --cc-font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --cc-text-xs:   0.75rem;    /* 12px — badges, captions */
+  --cc-text-sm:   0.875rem;   /* 14px — meta, hints */
+  --cc-text-base: 1rem;       /* 16px — body */
+  --cc-text-lg:   1.125rem;   /* 18px */
+  --cc-text-xl:   1.25rem;    /* 20px */
+  --cc-text-2xl:  1.5rem;     /* 24px */
+  --cc-text-3xl:  1.875rem;   /* 30px */
+  --cc-text-4xl:  2.25rem;    /* 36px */
+
+  --cc-leading-tight: 1.2;
+  --cc-leading-snug:  1.35;
+  --cc-leading-body:  1.55;
+
+  /* -- Shape ---------------------------------------------------------------- */
+  --cc-radius-sm:   10px;
+  --cc-radius-md:   14px;
+  --cc-radius-lg:   18px;
+  --cc-radius-card: 20px;      /* product / shop / post cards (16–24px spec) */
+  --cc-radius-xl:   24px;
+  --cc-radius-pill: 999px;
+
+  /* -- Elevation (very subtle, warm-tinted) ---------------------------------- */
+  --cc-shadow-sm: 0 1px 2px rgba(52, 43, 50, 0.06);
+  --cc-shadow-md: 0 4px 14px rgba(52, 43, 50, 0.08);
+  --cc-shadow-lg: 0 14px 34px rgba(52, 43, 50, 0.12);
+  --cc-shadow-pop: 0 8px 24px rgba(211, 49, 92, 0.28); /* pink CTA glow */
+
+  /* -- Spacing ---------------------------------------------------------------- */
+  --cc-space-1: 0.25rem;   /* 4px  */
+  --cc-space-2: 0.5rem;    /* 8px  */
+  --cc-space-3: 0.75rem;   /* 12px */
+  --cc-space-4: 1rem;      /* 16px */
+  --cc-space-5: 1.25rem;   /* 20px */
+  --cc-space-6: 1.5rem;    /* 24px */
+  --cc-space-8: 2rem;      /* 32px */
+  --cc-space-12: 3rem;     /* 48px */
+
+  /* -- Motion ----------------------------------------------------------------- */
+  --cc-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --cc-dur-fast: 150ms;
+  --cc-dur-med: 250ms;
+
+  /* -- Layout ----------------------------------------------------------------- */
+  --cc-container: 1200px;
+  --cc-topnav-h: 64px;
+  --cc-bottomnav-h: 68px;
+}
+
+/* --------------------------------------------------------------------------
+   2. RESET & BASE (mobile-first)
+   -------------------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+* { margin: 0; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  overflow-x: clip; /* never allow horizontal page scroll */
+}
+
+body {
+  font-family: var(--cc-font-body);
+  font-size: var(--cc-text-base); /* ~16px */
+  line-height: var(--cc-leading-body);
+  color: var(--cc-cocoa);
+  background: var(--cc-cream);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+  min-height: 100dvh;
+}
+
+img, svg, video { display: block; max-width: 100%; }
+img { height: auto; }
+
+a { color: var(--cc-pink-deep); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+::selection { background: var(--cc-pink-200); color: var(--cc-cocoa); }
+
+/* --------------------------------------------------------------------------
+   3. TYPOGRAPHY
+   Headings: Plus Jakarta Sans. Body/buttons/forms: Inter.
+   -------------------------------------------------------------------------- */
+h1, h2, h3, h4,
+.cc-h1, .cc-h2, .cc-h3, .cc-h4 {
+  font-family: var(--cc-font-head);
+  font-weight: 800;
+  line-height: var(--cc-leading-tight);
+  letter-spacing: -0.01em;
+  color: var(--cc-cocoa);
+  text-wrap: balance;
+}
+
+h1, .cc-h1 { font-size: var(--cc-text-3xl); }
+h2, .cc-h2 { font-size: var(--cc-text-2xl); }
+h3, .cc-h3 { font-size: var(--cc-text-xl); }
+h4, .cc-h4 { font-size: var(--cc-text-lg); font-weight: 700; }
+
+.cc-display {
+  font-family: var(--cc-font-head);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  font-size: clamp(2rem, 8vw, 3.25rem);
+}
+
+.cc-lead   { font-size: var(--cc-text-lg); color: var(--cc-cocoa-soft); line-height: var(--cc-leading-snug); }
+.cc-small  { font-size: var(--cc-text-sm); }
+.cc-caption { font-size: var(--cc-text-xs); color: var(--cc-cocoa-mute); }
+.cc-muted  { color: var(--cc-cocoa-soft); }
+
+.cc-eyebrow {
+  font-family: var(--cc-font-head);
+  font-size: var(--cc-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cc-pink-deep);
+}
+
+/* --------------------------------------------------------------------------
+   4. BUTTONS — fully rounded pills, >=44px touch targets
+   -------------------------------------------------------------------------- */
+.cc-btn {
+  --btn-bg: var(--cc-pink-deep);
+  --btn-fg: #fff;
+  --btn-border: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cc-space-2);
+  min-height: 48px;
+  padding: 0.8rem 1.75rem;
+  border: 2px solid var(--btn-border);
+  border-radius: var(--cc-radius-pill);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font-family: var(--cc-font-body);
+  font-size: var(--cc-text-base);
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: background var(--cc-dur-fast) var(--cc-ease),
+              transform var(--cc-dur-fast) var(--cc-ease),
+              box-shadow var(--cc-dur-fast) var(--cc-ease);
+}
+.cc-btn:hover { text-decoration: none; }
+.cc-btn svg { width: 20px; height: 20px; flex: none; }
+
+/* Primary: deep pink fill + white text (4.8:1). Hover darkens, press sinks. */
+.cc-btn-primary { --btn-bg: var(--cc-pink-deep); --btn-fg: #fff; box-shadow: var(--cc-shadow-pop); }
+.cc-btn-primary:hover { --btn-bg: var(--cc-pink-700); }
+.cc-btn-primary:active { transform: scale(0.97); box-shadow: none; }
+
+/* Secondary: pale pink fill + deep pink text (7:1). Never pale-pink text. */
+.cc-btn-secondary { --btn-bg: var(--cc-pink-50); --btn-fg: var(--cc-pink-ink); }
+.cc-btn-secondary:hover { --btn-bg: var(--cc-pink-100); }
+.cc-btn-secondary:active { transform: scale(0.97); }
+
+/* Outline: pink border + deep pink text, cream fill. */
+.cc-btn-outline { --btn-bg: var(--cc-white); --btn-fg: var(--cc-pink-deep); --btn-border: var(--cc-pink-deep); }
+.cc-btn-outline:hover { --btn-bg: var(--cc-pink-50); }
+
+/* Ghost: text-only, for low-emphasis actions. */
+.cc-btn-ghost { --btn-bg: transparent; --btn-fg: var(--cc-cocoa-soft); }
+.cc-btn-ghost:hover { --btn-bg: var(--cc-cream-deep); --btn-fg: var(--cc-cocoa); }
+
+/* Destructive: unmistakable warning red. */
+.cc-btn-danger { --btn-bg: var(--cc-danger); --btn-fg: #fff; }
+.cc-btn-danger:hover { --btn-bg: var(--cc-danger-ink); }
+.cc-btn-danger:active { transform: scale(0.97); }
+
+/* Sizes */
+.cc-btn-sm { min-height: 40px; padding: 0.5rem 1.1rem; font-size: var(--cc-text-sm); }
+.cc-btn-lg { min-height: 56px; padding: 1rem 2.25rem; font-size: var(--cc-text-lg); }
+.cc-btn-block { display: flex; width: 100%; }
+
+.cc-btn:disabled, .cc-btn[aria-disabled="true"] {
+  --btn-bg: var(--cc-cream-deep);
+  --btn-fg: var(--cc-cocoa-mute);
+  --btn-border: transparent;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* --------------------------------------------------------------------------
+   5. FILTER PILLS — compact; selected = pink filled, unselected = outlined
+   -------------------------------------------------------------------------- */
+.cc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-1);
+  min-height: 44px; /* touch target */
+  padding: 0.55rem 1.15rem;
+  border: 1.5px solid var(--cc-border);
+  border-radius: var(--cc-radius-pill);
+  background: var(--cc-white);
+  color: var(--cc-cocoa-soft);
+  font-size: var(--cc-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--cc-dur-fast) var(--cc-ease),
+              color var(--cc-dur-fast) var(--cc-ease),
+              border-color var(--cc-dur-fast) var(--cc-ease);
+}
+.cc-pill svg { width: 16px; height: 16px; }
+.cc-pill:hover { border-color: var(--cc-pink-200); color: var(--cc-cocoa); }
+
+/* Selected state — unmistakable: deep pink fill, white text. */
+.cc-pill[aria-pressed="true"], .cc-pill.is-active {
+  background: var(--cc-pink-deep);
+  border-color: var(--cc-pink-deep);
+  color: #fff;
+}
+.cc-pill[aria-pressed="true"]:hover, .cc-pill.is-active:hover { background: var(--cc-pink-700); }
+
+/* Horizontal scroll row for filter pills (scrolls internally, never the page) */
+.cc-pill-row {
+  display: flex;
+  gap: var(--cc-space-2);
+  overflow-x: auto;
+  padding: var(--cc-space-1) var(--cc-space-4) var(--cc-space-2);
+  margin: 0 calc(var(--cc-space-4) * -1);
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.cc-pill-row::-webkit-scrollbar { display: none; }
+
+/* --------------------------------------------------------------------------
+   6. BADGES — tiny status flags. Text always AA on its fill.
+   -------------------------------------------------------------------------- */
+.cc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: var(--cc-radius-pill);
+  font-family: var(--cc-font-head);
+  font-size: var(--cc-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.cc-badge svg { width: 13px; height: 13px; }
+
+.cc-badge-ready   { background: var(--cc-mint);      color: var(--cc-mint-ink); }   /* Ready Today */
+.cc-badge-new     { background: var(--cc-pink-deep); color: #fff; }                 /* New */
+.cc-badge-soldout { background: #ECE5DB;             color: var(--cc-cocoa-soft); } /* Sold Out */
+.cc-badge-info    { background: var(--cc-lilac-200); color: var(--cc-lilac-ink); }
+.cc-badge-warn    { background: var(--cc-mango);     color: var(--cc-cocoa); }     /* cocoa on mango 8.8:1 */
+.cc-badge-danger  { background: var(--cc-danger);    color: #fff; }
+
+/* --------------------------------------------------------------------------
+   7. CARDS — white/cream, 16–24px radii, hairline borders, whisper shadows
+   -------------------------------------------------------------------------- */
+.cc-card {
+  background: var(--cc-white);
+  border: 1px solid var(--cc-border-soft);
+  border-radius: var(--cc-radius-card);
+  box-shadow: var(--cc-shadow-sm);
+}
+
+/* -- Product card: square media, title, shop, price row --------------------- */
+.cc-product-card {
+  background: var(--cc-white);
+  border: 1px solid var(--cc-border-soft);
+  border-radius: var(--cc-radius-card);
+  box-shadow: var(--cc-shadow-sm);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--cc-dur-med) var(--cc-ease),
+              box-shadow var(--cc-dur-med) var(--cc-ease);
+}
+a.cc-product-card:hover, .cc-product-card.cc-clickable:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--cc-shadow-md);
+  text-decoration: none;
+}
+.cc-product-media {
+  position: relative;
+  aspect-ratio: 1 / 1; /* square, or use 4/5 for slightly portrait */
+  background: var(--cc-cream-deep);
+  overflow: hidden;
+}
+.cc-product-media img { width: 100%; height: 100%; object-fit: cover; }
+.cc-product-media .cc-badge {
+  position: absolute;
+  top: var(--cc-space-2);
+  left: var(--cc-space-2);
+  box-shadow: var(--cc-shadow-sm);
+}
+.cc-product-fav {
+  position: absolute;
+  top: var(--cc-space-2);
+  right: var(--cc-space-2);
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--cc-cocoa-soft);
+  cursor: pointer;
+  box-shadow: var(--cc-shadow-sm);
+}
+.cc-product-fav svg { width: 20px; height: 20px; }
+.cc-product-fav[aria-pressed="true"] { color: var(--cc-pink-deep); }
+.cc-product-fav[aria-pressed="true"] svg { fill: var(--cc-pink-deep); }
+.cc-product-body {
+  padding: var(--cc-space-3) var(--cc-space-4) var(--cc-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-1);
+  flex: 1;
+}
+.cc-product-title {
+  font-family: var(--cc-font-head);
+  font-weight: 700;
+  font-size: var(--cc-text-base);
+  line-height: var(--cc-leading-snug);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cc-product-shop {
+  display: flex; align-items: center; gap: var(--cc-space-1);
+  font-size: var(--cc-text-sm);
+  color: var(--cc-cocoa-soft);
+}
+.cc-product-shop svg { width: 14px; height: 14px; color: var(--cc-cocoa-mute); }
+.cc-product-row {
+  margin-top: auto;
+  padding-top: var(--cc-space-2);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2);
+}
+.cc-price {
+  font-family: var(--cc-font-head);
+  font-weight: 800;
+  font-size: var(--cc-text-lg);
+  color: var(--cc-cocoa);
+}
+.cc-price small { font-weight: 600; font-size: var(--cc-text-xs); color: var(--cc-cocoa-mute); }
+
+/* -- Shop card: horizontal seller row --------------------------------------- */
+.cc-shop-card {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-space-4);
+  padding: var(--cc-space-4);
+  background: var(--cc-white);
+  border: 1px solid var(--cc-border-soft);
+  border-radius: var(--cc-radius-card);
+  box-shadow: var(--cc-shadow-sm);
+  transition: transform var(--cc-dur-med) var(--cc-ease),
+              box-shadow var(--cc-dur-med) var(--cc-ease);
+}
+a.cc-shop-card:hover { transform: translateY(-2px); box-shadow: var(--cc-shadow-md); text-decoration: none; }
+.cc-shop-logo {
+  width: 64px; height: 64px; flex: none;
+  border-radius: var(--cc-radius-md);
+  object-fit: cover;
+  background: var(--cc-cream-deep);
+  border: 1px solid var(--cc-border-soft);
+}
+.cc-shop-info { min-width: 0; flex: 1; }
+.cc-shop-name {
+  font-family: var(--cc-font-head);
+  font-weight: 700;
+  font-size: var(--cc-text-base);
+  color: var(--cc-cocoa);
+  display: flex; align-items: center; gap: var(--cc-space-1);
+}
+.cc-shop-name svg { width: 16px; height: 16px; color: var(--cc-pink-deep); flex: none; }
+.cc-shop-meta {
+  font-size: var(--cc-text-sm);
+  color: var(--cc-cocoa-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cc-shop-rating {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: var(--cc-text-sm); font-weight: 600; color: var(--cc-cocoa);
+}
+.cc-shop-rating svg { width: 14px; height: 14px; color: var(--cc-mango); fill: var(--cc-mango); }
+.cc-shop-chev { color: var(--cc-cocoa-mute); flex: none; }
+.cc-shop-chev svg { width: 20px; height: 20px; }
+
+/* -- Post card: community listing / announcement ----------------------------- */
+.cc-post-card {
+  background: var(--cc-white);
+  border: 1px solid var(--cc-border-soft);
+  border-radius: var(--cc-radius-card);
+  box-shadow: var(--cc-shadow-sm);
+  padding: var(--cc-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-3);
+}
+.cc-post-head { display: flex; align-items: center; gap: var(--cc-space-3); }
+.cc-avatar {
+  width: 44px; height: 44px; flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--cc-pink-50);
+  border: 1px solid var(--cc-border-soft);
+}
+.cc-post-who { min-width: 0; flex: 1; }
+.cc-post-author { font-weight: 600; font-size: var(--cc-text-sm); color: var(--cc-cocoa); }
+.cc-post-time { font-size: var(--cc-text-xs); color: var(--cc-cocoa-mute); }
+.cc-post-body { font-size: var(--cc-text-base); color: var(--cc-cocoa); }
+.cc-post-media {
+  border-radius: var(--cc-radius-md);
+  overflow: hidden;
+  background: var(--cc-cream-deep);
+}
+.cc-post-media img { width: 100%; aspect-ratio: 16/10; object-fit: cover; }
+.cc-post-actions {
+  display: flex; gap: var(--cc-space-1);
+  border-top: 1px solid var(--cc-border-soft);
+  padding-top: var(--cc-space-3);
+}
+.cc-post-action {
+  display: inline-flex; align-items: center; gap: var(--cc-space-2);
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  border: none; background: transparent; border-radius: var(--cc-radius-pill);
+  color: var(--cc-cocoa-soft);
+  font-size: var(--cc-text-sm); font-weight: 600;
+  cursor: pointer;
+}
+.cc-post-action svg { width: 18px; height: 18px; }
+.cc-post-action:hover { background: var(--cc-pink-50); color: var(--cc-pink-deep); }
+.cc-post-action[aria-pressed="true"] { color: var(--cc-pink-deep); }
+.cc-post-action[aria-pressed="true"] svg { fill: var(--cc-pink-deep); }
+
+/* --------------------------------------------------------------------------
+   8. FORM CONTROLS — 48px targets, clear labels, honest errors
+   -------------------------------------------------------------------------- */
+.cc-field { display: flex; flex-direction: column; gap: var(--cc-space-2); margin-bottom: var(--cc-space-4); }
+.cc-label { font-size: var(--cc-text-sm); font-weight: 600; color: var(--cc-cocoa); }
+.cc-label .cc-req { color: var(--cc-pink-deep); font-weight: 700; }
+.cc-hint { font-size: var(--cc-text-sm); color: var(--cc-cocoa-soft); }
+.cc-error-text { font-size: var(--cc-text-sm); color: var(--cc-danger-ink); font-weight: 600; display: flex; align-items: center; gap: var(--cc-space-1); }
+.cc-error-text svg { width: 15px; height: 15px; flex: none; }
+
+.cc-input, .cc-textarea, .cc-select {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid var(--cc-border);
+  border-radius: var(--cc-radius-md);
+  background: var(--cc-white);
+  font-size: var(--cc-text-base);
+  transition: border-color var(--cc-dur-fast) var(--cc-ease),
+              box-shadow var(--cc-dur-fast) var(--cc-ease);
+}
+.cc-textarea { min-height: 120px; resize: vertical; line-height: var(--cc-leading-body); }
+.cc-input::placeholder, .cc-textarea::placeholder { color: var(--cc-cocoa-mute); }
+.cc-input:hover, .cc-textarea:hover, .cc-select:hover { border-color: var(--cc-pink-200); }
+.cc-input:focus, .cc-textarea:focus, .cc-select:focus {
+  outline: none;
+  border-color: var(--cc-pink-deep);
+  box-shadow: 0 0 0 3px rgba(211, 49, 92, 0.16);
+}
+.cc-input[aria-invalid="true"], .cc-textarea[aria-invalid="true"] { border-color: var(--cc-danger); }
+.cc-input[aria-invalid="true"]:focus, .cc-textarea[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px rgba(201, 58, 58, 0.16);
+}
+.cc-input:disabled, .cc-textarea:disabled, .cc-select:disabled {
+  background: var(--cc-cream-deep); color: var(--cc-cocoa-mute); cursor: not-allowed;
+}
+
+.cc-select {
+  appearance: none; -webkit-appearance: none;
+  padding-right: 2.75rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23342B32' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 18px;
+  cursor: pointer;
+}
+
+/* Search field with icon */
+.cc-search { position: relative; }
+.cc-search svg {
+  position: absolute; left: 1rem; top: 50%; transform: translateY(-50%);
+  width: 20px; height: 20px; color: var(--cc-cocoa-mute); pointer-events: none;
+}
+.cc-search .cc-input { padding-left: 3rem; border-radius: var(--cc-radius-pill); }
+
+/* Checkboxes & radios — custom, 24px boxes, pink-deep checks */
+.cc-check, .cc-radio {
+  display: flex; align-items: flex-start; gap: var(--cc-space-3);
+  min-height: 44px; padding: var(--cc-space-2) 0;
+  font-size: var(--cc-text-base); cursor: pointer;
+}
+.cc-check input, .cc-radio input {
+  appearance: none; -webkit-appearance: none;
+  flex: none;
+  width: 24px; height: 24px;
+  margin: 0;
+  border: 2px solid var(--cc-border);
+  background: var(--cc-white);
+  cursor: pointer;
+  transition: background var(--cc-dur-fast), border-color var(--cc-dur-fast);
+}
+.cc-check input { border-radius: 7px; }
+.cc-radio input { border-radius: 50%; }
+.cc-check input:checked, .cc-radio input:checked {
+  background: var(--cc-pink-deep);
+  border-color: var(--cc-pink-deep);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+  background-size: 15px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.cc-radio input:checked { background-image: none; box-shadow: inset 0 0 0 5px var(--cc-white); }
+
+/* Toggle switch */
+.cc-switch { display: inline-flex; align-items: center; gap: var(--cc-space-3); min-height: 44px; cursor: pointer; }
+.cc-switch input {
+  appearance: none; -webkit-appearance: none;
+  width: 52px; height: 32px; flex: none;
+  border-radius: var(--cc-radius-pill);
+  background: var(--cc-border);
+  position: relative; cursor: pointer;
+  transition: background var(--cc-dur-fast) var(--cc-ease);
+}
+.cc-switch input::after {
+  content: ""; position: absolute; top: 4px; left: 4px;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #fff; box-shadow: var(--cc-shadow-sm);
+  transition: transform var(--cc-dur-fast) var(--cc-ease);
+}
+.cc-switch input:checked { background: var(--cc-pink-deep); }
+.cc-switch input:checked::after { transform: translateX(20px); }
+
+/* --------------------------------------------------------------------------
+   9. NAVIGATION
+   Mobile: fixed bottom nav. Desktop (>=1024px): sticky top nav.
+   -------------------------------------------------------------------------- */
+/* -- Desktop top nav (hidden on mobile) ------------------------------------- */
+.cc-topnav {
+  display: none;
+  position: sticky; top: 0; z-index: 50;
+  height: var(--cc-topnav-h);
+  background: rgba(255, 249, 243, 0.88);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--cc-border-soft);
+}
+.cc-topnav-inner {
+  height: 100%;
+  display: flex; align-items: center; gap: var(--cc-space-6);
+}
+.cc-brand { display: inline-flex; align-items: center; flex: none; }
+.cc-brand img { height: 34px; width: auto; }
+.cc-navlinks { display: flex; align-items: center; gap: var(--cc-space-2); margin-right: auto; }
+.cc-navlink {
+  display: inline-flex; align-items: center; gap: var(--cc-space-2);
+  min-height: 44px; padding: 0.5rem 1rem;
+  border-radius: var(--cc-radius-pill);
+  color: var(--cc-cocoa-soft);
+  font-weight: 600; font-size: var(--cc-text-base);
+}
+.cc-navlink svg { width: 19px; height: 19px; }
+.cc-navlink:hover { background: var(--cc-pink-50); color: var(--cc-cocoa); text-decoration: none; }
+.cc-navlink.is-active { background: var(--cc-pink-50); color: var(--cc-pink-deep); }
+.cc-nav-actions { display: flex; align-items: center; gap: var(--cc-space-2); }
+.cc-icon-btn {
+  display: inline-grid; place-items: center;
+  width: 44px; height: 44px;
+  border: none; border-radius: 50%;
+  background: transparent; color: var(--cc-cocoa-soft);
+  cursor: pointer; position: relative;
+}
+.cc-icon-btn svg { width: 22px; height: 22px; }
+.cc-icon-btn:hover { background: var(--cc-pink-50); color: var(--cc-pink-deep); }
+.cc-icon-btn .cc-dot {
+  position: absolute; top: 9px; right: 10px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--cc-pink-deep); border: 2px solid var(--cc-cream);
+}
+
+/* -- Mobile bottom nav (hidden on desktop) ---------------------------------- */
+.cc-bottomnav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+  display: flex;
+  background: rgba(255, 255, 255, 0.96);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border-top: 1px solid var(--cc-border-soft);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  box-shadow: 0 -4px 20px rgba(52, 43, 50, 0.06);
+}
+.cc-bnav-item {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px;
+  min-height: var(--cc-bottomnav-h);
+  border: none; background: transparent;
+  color: var(--cc-cocoa-mute);
+  font-size: var(--cc-text-xs); font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.cc-bnav-item svg { width: 24px; height: 24px; }
+.cc-bnav-item:hover { color: var(--cc-cocoa); text-decoration: none; }
+.cc-bnav-item.is-active { color: var(--cc-pink-deep); }
+/* Center "post" action: raised pink pill button */
+.cc-bnav-fab {
+  flex: none;
+  align-self: center;
+  width: 60px; height: 60px;
+  margin: -22px 6px 0;
+  border: none; border-radius: 50%;
+  background: var(--cc-pink-deep); color: #fff;
+  display: grid; place-items: center;
+  box-shadow: var(--cc-shadow-pop);
+  cursor: pointer;
+}
+.cc-bnav-fab svg { width: 26px; height: 26px; }
+.cc-bnav-fab:active { transform: scale(0.94); }
+/* Pages using the bottom nav must clear it: <body class="cc-has-bottomnav"> */
+.cc-has-bottomnav { padding-bottom: calc(var(--cc-bottomnav-h) + env(safe-area-inset-bottom, 0px)); }
+
+/* --------------------------------------------------------------------------
+   10. EMPTY / LOADING / ERROR STATES
+   -------------------------------------------------------------------------- */
+/* Empty state: centered, soft decorative slot, title, copy, actions */
+.cc-empty {
+  text-align: center;
+  padding: var(--cc-space-12) var(--cc-space-6);
+  display: flex; flex-direction: column; align-items: center; gap: var(--cc-space-3);
+}
+.cc-empty-art {
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  background: var(--cc-pink-50);
+  display: grid; place-items: center;
+  color: var(--cc-pink-deep);
+  margin-bottom: var(--cc-space-2);
+}
+.cc-empty-art svg { width: 52px; height: 52px; }
+.cc-empty-title { font-family: var(--cc-font-head); font-weight: 800; font-size: var(--cc-text-xl); }
+.cc-empty-text { color: var(--cc-cocoa-soft); max-width: 34ch; }
+.cc-empty-actions { display: flex; gap: var(--cc-space-2); flex-wrap: wrap; justify-content: center; margin-top: var(--cc-space-2); }
+
+/* Skeleton shimmer for loading cards */
+.cc-skeleton {
+  border-radius: var(--cc-radius-md);
+  background: linear-gradient(100deg, var(--cc-cream-deep) 40%, var(--cc-pink-50) 50%, var(--cc-cream-deep) 60%);
+  background-size: 200% 100%;
+  animation: cc-shimmer 1.4s infinite linear;
+  color: transparent !important;
+  user-select: none;
+}
+@keyframes cc-shimmer { to { background-position: -200% 0; } }
+
+/* Spinner */
+.cc-spinner {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 4px solid var(--cc-pink-100);
+  border-top-color: var(--cc-pink-deep);
+  animation: cc-spin 0.8s linear infinite;
+}
+.cc-spinner.cc-spinner-sm { width: 20px; height: 20px; border-width: 3px; }
+@keyframes cc-spin { to { transform: rotate(360deg); } }
+.cc-loading { display: flex; flex-direction: column; align-items: center; gap: var(--cc-space-4); padding: var(--cc-space-12) 0; color: var(--cc-cocoa-soft); }
+
+/* Alert banners — icon + message, never color alone (icon carries meaning) */
+.cc-alert {
+  display: flex; align-items: flex-start; gap: var(--cc-space-3);
+  padding: var(--cc-space-4);
+  border-radius: var(--cc-radius-md);
+  border: 1px solid;
+  font-size: var(--cc-text-sm);
+  font-weight: 500;
+}
+.cc-alert svg { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+.cc-alert-info    { background: var(--cc-lilac-50);  border-color: var(--cc-lilac-200); color: var(--cc-lilac-ink); }
+.cc-alert-success { background: var(--cc-mint-50);   border-color: var(--cc-mint-200);  color: var(--cc-mint-ink); }
+.cc-alert-warn    { background: var(--cc-mango-50);  border-color: var(--cc-mango-200); color: var(--cc-cocoa); }
+.cc-alert-danger  { background: var(--cc-danger-50); border-color: #F3C2C2;             color: var(--cc-danger-ink); }
+.cc-alert strong { font-weight: 700; }
+
+/* --------------------------------------------------------------------------
+   11. DECORATIVE UTILITIES — hero / banners / empty states ONLY.
+   Never place behind important text. All soft, low-contrast, non-essential.
+   -------------------------------------------------------------------------- */
+.cc-deco { position: relative; overflow: hidden; isolation: isolate; }
+
+/* Soft blurred blobs */
+.cc-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: -1;
+}
+.cc-blob-pink  { background: var(--cc-pink-200); }
+.cc-blob-mango { background: var(--cc-mango-200); }
+.cc-blob-mint  { background: var(--cc-mint-200); }
+.cc-blob-lilac { background: var(--cc-lilac-200); }
+
+/* Crisp small circles (confetti dots) */
+.cc-dots {
+  background-image: radial-gradient(var(--cc-pink-200) 2.5px, transparent 2.5px);
+  background-size: 26px 26px;
+}
+.cc-dots-mint  { background-image: radial-gradient(var(--cc-mint-200) 2.5px, transparent 2.5px); background-size: 26px 26px; }
+.cc-dots-mango { background-image: radial-gradient(var(--cc-mango-200) 2.5px, transparent 2.5px); background-size: 26px 26px; }
+
+/* Gentle wave divider — place an inline SVG wave inside, e.g.:
+   <div class="cc-wave"><svg …><path d="…" fill="#FFF9F3"/></svg></div> */
+.cc-wave { line-height: 0; }
+.cc-wave svg { width: 100%; height: 64px; }
+
+/* Hero band: cream with a soft pink radial wash, content stays readable */
+.cc-hero {
+  background:
+    radial-gradient(120% 90% at 85% 10%, var(--cc-pink-50) 0%, transparent 55%),
+    radial-gradient(100% 80% at 10% 90%, var(--cc-mango-50) 0%, transparent 50%),
+    var(--cc-cream);
+}
+
+/* --------------------------------------------------------------------------
+   12. LAYOUT UTILITIES + BREAKPOINTS
+   Base = mobile (<768px). Tablet 768–1023px. Desktop >=1024px.
+   -------------------------------------------------------------------------- */
+.cc-container {
+  width: min(var(--cc-container), 100% - 2rem);
+  margin-inline: auto;
+}
+.cc-section { padding-block: var(--cc-space-8); }
+.cc-stack > * + * { margin-top: var(--cc-space-4); }
+.cc-cluster { display: flex; flex-wrap: wrap; gap: var(--cc-space-2); align-items: center; }
+
+/* Product grid: 2 cols on phones, 3 on tablet, 4–5 on desktop */
+.cc-grid-products {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--cc-space-3);
+}
+.cc-grid-shops { display: grid; grid-template-columns: 1fr; gap: var(--cc-space-3); }
+
+/* Visibility helpers */
+.cc-show-mobile { display: revert; }
+.cc-show-tablet, .cc-show-desktop { display: none !important; }
+
+@media (min-width: 768px) {
+  .cc-grid-products { grid-template-columns: repeat(3, 1fr); gap: var(--cc-space-4); }
+  .cc-grid-shops { grid-template-columns: repeat(2, 1fr); gap: var(--cc-space-4); }
+  .cc-section { padding-block: var(--cc-space-12); }
+  .cc-show-mobile { display: none !important; }
+  .cc-show-tablet { display: revert !important; }
+  .cc-wave svg { height: 96px; }
+}
+
+@media (min-width: 1024px) {
+  .cc-topnav { display: block; }       /* desktop top nav on */
+  .cc-bottomnav { display: none; }     /* mobile bottom nav off */
+  .cc-has-bottomnav { padding-bottom: 0; }
+  .cc-grid-products { grid-template-columns: repeat(4, 1fr); }
+  .cc-show-desktop { display: revert !important; }
+  .cc-show-tablet { display: none !important; }
+  h1, .cc-h1 { font-size: var(--cc-text-4xl); }
+  h2, .cc-h2 { font-size: var(--cc-text-3xl); }
+}
+
+/* --------------------------------------------------------------------------
+   13. FOCUS, SELECTION & REDUCED MOTION
+   -------------------------------------------------------------------------- */
+/* Visible focus on everything interactive — 3px deep-pink ring (4.8:1) */
+a:focus-visible, button:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible,
+[tabindex]:focus-visible, summary:focus-visible {
+  outline: 3px solid var(--cc-focus);
+  outline-offset: 2px;
+  border-radius: var(--cc-radius-sm);
+}
+/* Inputs already show their own ring — don't double up */
+.cc-input:focus-visible, .cc-textarea:focus-visible, .cc-select:focus-visible,
+.cc-check input:focus-visible, .cc-radio input:focus-visible, .cc-switch input:focus-visible {
+  outline: none;
+}
+
+/* Respect users who prefer no motion: kill animation & smooth scroll */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High-contrast / forced-colors: keep meaning without color */
+@media (forced-colors: active) {
+  .cc-btn-primary, .cc-pill[aria-pressed="true"], .cc-badge-new { forced-color-adjust: none; }
+}

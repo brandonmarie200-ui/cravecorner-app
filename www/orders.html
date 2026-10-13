@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="CraveCorner orders — track your order requests and incoming orders from customers.">
+<title>Orders — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages + Stage 4 -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+<link rel="stylesheet" href="assets/css/stage4.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div id="s4-orders-root" aria-live="polite"></div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<!-- Stage 4: Supabase client + shared order/messaging/notification logic -->
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/cc-orders.js"></script>
+<script src="assets/js/cc-messages.js"></script>
+<script src="assets/js/cc-notify.js"></script>
+<script>
+/* ==========================================================================
+   Stage 4 — orders.html: buyer "My Orders" + seller "Order Requests".
+   Tabbed; the seller tab appears only when the signed-in user owns a shop.
+   ========================================================================== */
+(function () {
+  'use strict';
+  if (!window.CC) return;
+  var CC = window.CC;
+  window.CC_ACTIVE_NAV = 'profile';
+
+  function esc(s) { return CC.esc(s); }
+
+  var BUYER_FILTERS = [
+    { key: 'all',       label: 'All' },
+    { key: 'pending',   label: 'Pending' },
+    { key: 'active',    label: 'In progress', match: ['awaiting_customer', 'confirmed', 'preparing', 'ready'] },
+    { key: 'completed', label: 'Completed' },
+    { key: 'closed',    label: 'Declined / Canceled', match: ['declined', 'canceled'] }
+  ];
+  var SELLER_FILTERS = [
+    { key: 'needs',     label: 'Needs action', match: ['pending'] },
+    { key: 'awaiting',  label: 'Awaiting customer', match: ['awaiting_customer'] },
+    { key: 'active',    label: 'In progress', match: ['confirmed', 'preparing', 'ready'] },
+    { key: 'completed', label: 'Completed' },
+    { key: 'closed',    label: 'Declined / Canceled', match: ['declined', 'canceled'] },
+    { key: 'all',       label: 'All' }
+  ];
+
+  window.CC_PAGE_INIT = function () {
+    var root = document.getElementById('s4-orders-root');
+    root.innerHTML = '<div class="cc-loading" role="status">Loading orders…</div>';
+    CC.ready.then(function (r) {
+      if (!r.live || !CC.sb) { demoState(root); return; }
+      if (!r.user) { signedOutState(root); return; }
+      bootLive(root, r.user);
+    }).catch(function (e) {
+      root.innerHTML = CC.states.error({ title: 'Could not load orders', body: String((e && e.message) || e) });
+    });
+  };
+
+  function demoState(root) {
+    root.innerHTML =
+      '<div class="s4-page-head"><h1 class="cc-h2">Orders</h1></div>' +
+      CC.states.empty({
+        icon: 'shopping-bag',
+        title: 'Orders need the live marketplace',
+        body: 'This preview isn\u2019t connected to the CraveCorner backend yet, so there are no real orders to show. When the backend is live, your order requests and incoming orders land here — with a clear status timeline from request to completion.',
+        actionLabel: 'Explore the marketplace', actionHref: 'explore.html'
+      }) +
+      '<p class="cc-caption" style="margin-top:1rem">' + CC.icon('shield') +
+      ' <span>CraveCorner never runs in-app checkout — payment is always arranged directly between customer and seller.</span></p>';
+    hydrateIcons(root);
+  }
+
+  function signedOutState(root) {
+    root.innerHTML =
+      '<div class="s4-page-head"><h1 class="cc-h2">Orders</h1></div>' +
+      CC.states.empty({
+        icon: 'user',
+        title: 'Sign in to see your orders',
+        body: 'Order requests need a CraveCorner account, and accounts arrive in Stage 2 — sign-ups aren\u2019t open yet. When they are, every request you send (and every order your shop receives) shows up here with a live status timeline.'
+      });
+    hydrateIcons(root);
+  }
+
+  function hydrateIcons(scope) {
+    Array.prototype.forEach.call(scope.querySelectorAll('[data-icon]'), function (el) {
+      var tmp = document.createElement('span');
+      tmp.innerHTML = CC.icon(el.getAttribute('data-icon'));
+      if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+    });
+  }
+
+  function bootLive(root, user) {
+    var state = {
+      user: user, tab: 'buyer', buyerFilter: 'all', sellerFilter: 'needs',
+      myShop: null, buyerOrders: [], sellerOrders: [],
+      products: {}, shops: {}, detailId: new URLSearchParams(location.search).get('id')
+    };
+    if (state.detailId) { renderDetail(root, state); return; }
+
+    CC.myShop().then(function (shop) {
+      state.myShop = shop;
+      return Promise.all([loadBuyerOrders(state), shop ? loadSellerOrders(state) : Promise.resolve([])]);
+    }).then(function () {
+      renderTabs(root, state);
+    }).catch(function (e) {
+      root.innerHTML = CC.states.error({ title: 'Could not load orders', body: String((e && e.message) || e) });
+    });
+  }
+
+  function loadBuyerOrders(state) {
+    return CC.sb.from('cc_order_requests').select('*')
+      .eq('buyer_id', state.user.id).order('created_at', { ascending: false }).limit(100)
+      .then(function (r) {
+        if (r.error) throw new Error(r.error.message);
+        state.buyerOrders = r.data || [];
+        return enrich(state, state.buyerOrders);
+      });
+  }
+
+  function loadSellerOrders(state) {
+    return CC.sb.from('cc_order_requests').select('*')
+      .eq('shop_id', state.myShop.id).order('created_at', { ascending: false }).limit(100)
+      .then(function (r) {
+        if (r.error) throw new Error(r.error.message);
+        state.sellerOrders = r.data || [];
+        return enrich(state, state.sellerOrders);
+      });
+  }
+
+  /* Batch-fetch product names/covers + shop names for a list of orders. */
+  function enrich(state, orders) {
+    var pIds = {}, sIds = {};
+    orders.forEach(function (o) { pIds[o.product_id] = 1; sIds[o.shop_id] = 1; });
+    var pList = Object.keys(pIds), sList = Object.keys(sIds);
+    var p1 = pList.length ? CC.sb.from('cc_products').select('id, name, price_cents').in('id', pList)
+      .then(function (r) {
+        (r.data || []).forEach(function (p) { state.products[p.id] = p; });
+        var covers = (r.data || []).map(function (p) {
+          return CC.getProductCover(p.id).then(function (url) {
+            if (state.products[p.id]) state.products[p.id]._cover = url;
+          });
+        });
+        return Promise.all(covers);
+      }) : Promise.resolve();
+    var p2 = sList.length ? CC.sb.from('cc_shops_public').select('id, name').in('id', sList)
+      .then(function (r) { (r.data || []).forEach(function (s) { state.shops[s.id] = s; }); })
+      : Promise.resolve();
+    return Promise.all([p1, p2]);
+  }
+
+  /* ---------------- list ---------------- */
+
+  function renderTabs(root, state) {
+    var tabs = '<div class="s4-tabs" role="tablist" aria-label="Order views">' +
+      '<button type="button" class="s4-tab' + (state.tab === 'buyer' ? ' is-active' : '') + '" data-tab="buyer" role="tab" aria-selected="' + (state.tab === 'buyer') + '">' + CC.icon('shopping-bag') + 'My Orders</button>';
+    if (state.myShop) {
+      tabs += '<button type="button" class="s4-tab' + (state.tab === 'seller' ? ' is-active' : '') + '" data-tab="seller" role="tab" aria-selected="' + (state.tab === 'seller') + '">' + CC.icon('store') + 'Order Requests</button>';
+    }
+    tabs += '</div>';
+    root.innerHTML =
+      '<div class="s4-page-head"><h1 class="cc-h2">' + (state.tab === 'seller' ? 'Order Requests' : 'My Orders') + '</h1></div>' +
+      tabs + '<div id="s4-list"></div>';
+    Array.prototype.forEach.call(root.querySelectorAll('[data-tab]'), function (btn) {
+      btn.addEventListener('click', function () {
+        state.tab = btn.getAttribute('data-tab');
+        renderTabs(root, state);
+      });
+    });
+    renderList(root, state);
+  }
+
+  function filterDefs(state) { return state.tab === 'seller' ? SELLER_FILTERS : BUYER_FILTERS; }
+  function filterKey(state) { return state.tab === 'seller' ? state.sellerFilter : state.buyerFilter; }
+  function setFilter(state, k) { if (state.tab === 'seller') state.sellerFilter = k; else state.buyerFilter = k; }
+  function ordersFor(state) { return state.tab === 'seller' ? state.sellerOrders : state.buyerOrders; }
+
+  function matchFilter(order, def) {
+    if (def.key === 'all') return true;
+    var set = def.match || [def.key];
+    return set.indexOf(order.status) !== -1;
+  }
+
+  function renderList(root, state) {
+    var host = root.querySelector('#s4-list');
+    var orders = ordersFor(state);
+    var defs = filterDefs(state);
+    var counts = {};
+    defs.forEach(function (d) {
+      counts[d.key] = orders.filter(function (o) { return matchFilter(o, d); }).length;
+    });
+    var cur = filterKey(state);
+    var fHtml = '<div class="s4-filters" role="group" aria-label="Filter orders">' + defs.map(function (d) {
+      return '<button type="button" class="s4-filter' + (d.key === cur ? ' is-active' : '') + '" data-filter="' + d.key + '"' +
+        (d.key === cur ? ' aria-pressed="true"' : ' aria-pressed="false"') + '>' + esc(d.label) +
+        ' <span class="s4-count">' + counts[d.key] + '</span></button>';
+    }).join('') + '</div>';
+
+    var shown = orders.filter(function (o) {
+      var d = null;
+      for (var i = 0; i < defs.length; i++) if (defs[i].key === cur) d = defs[i];
+      return d ? matchFilter(o, d) : true;
+    });
+
+    var isSeller = state.tab === 'seller';
+    var listHtml;
+    if (!orders.length) {
+      listHtml = CC.states.empty({
+        icon: 'shopping-bag',
+        title: isSeller ? 'No order requests yet' : 'No orders yet',
+        body: isSeller
+          ? 'When customers request your food, their requests land here for you to accept, decline, or quote.'
+          : 'When you request food from a listing, it shows up here with a live status timeline.',
+        actionLabel: isSeller ? undefined : 'Explore the marketplace',
+        actionHref: isSeller ? undefined : 'explore.html'
+      });
+    } else if (!shown.length) {
+      listHtml = CC.states.empty({ icon: 'filter', title: 'Nothing in this view', body: 'Try a different filter.' });
+    } else {
+      listHtml = '<div class="s4-order-list">' + shown.map(function (o) {
+        return orderCardHtml(o, state, isSeller);
+      }).join('') + '</div>';
+    }
+    host.innerHTML = fHtml + listHtml;
+    Array.prototype.forEach.call(host.querySelectorAll('[data-filter]'), function (btn) {
+      btn.addEventListener('click', function () { setFilter(state, btn.getAttribute('data-filter')); renderList(root, state); });
+    });
+    Array.prototype.forEach.call(host.querySelectorAll('[data-order]'), function (card) {
+      card.addEventListener('click', function () {
+        window.location.href = 'orders.html?id=' + encodeURIComponent(card.getAttribute('data-order'));
+      });
+    });
+  }
+
+  function orderCardHtml(o, state, isSeller) {
+    var p = state.products[o.product_id] || {};
+    var shopName = (state.shops[o.shop_id] || {}).name;
+    var who = isSeller ? null : shopName;
+    return '<button type="button" class="s4-order-card" data-order="' + esc(o.id) + '">' +
+      '<span class="s4-order-top">' +
+        (p._cover ? '<img class="s4-order-thumb" src="' + esc(p._cover) + '" alt="">'
+                  : '<span class="s4-order-thumb s4-conv-avatar">' + CC.icon('shopping-bag') + '</span>') +
+        '<span class="s4-order-meta"><span class="s4-order-name">' + esc(p.name || 'Order') + '</span>' +
+        '<span class="s4-order-sub" style="display:block">' +
+          esc(o.qty) + ' × ' + esc(CC.centsToPrice(o.subtotal_cents)) +
+          (who ? ' · ' + esc(who) : '') + ' · ' + esc(CC.formatDate(o.requested_date) || CC.formatDateTime(o.created_at)) +
+        '</span></span>' +
+        CC.orderChip(o.status, isSeller ? 'seller' : 'buyer') +
+      '</span></button>';
+  }
+
+  /* ---------------- detail ---------------- */
+
+  function renderDetail(root, state) {
+    root.innerHTML =
+      '<div class="s4-page-head"><a class="s4-back" href="orders.html">' + CC.icon('share') + ' All orders</a></div>' +
+      '<div class="cc-loading" role="status">Loading order…</div>';
+    // Flip the back chevron: share icon rotated reads wrong; use a text-safe arrow via CSS-free char? Keep icon simple.
+    CC.getOrderDetail(state.detailId).then(function (detail) {
+      return CC.myShop().then(function (shop) {
+        state.myShop = shop;
+        var role = detail.order.buyer_id === state.user.id ? 'buyer'
+          : (shop && shop.id === detail.order.shop_id) || CC.isAdmin ? 'seller' : 'buyer';
+        renderDetailView(root, state, detail, role);
+      });
+    }).catch(function (e) {
+      root.innerHTML = '<div class="s4-page-head"><a class="s4-back" href="orders.html">' + CC.icon('share') + ' All orders</a></div>' +
+        CC.states.error({ title: 'Order not found', body: String((e && e.message) || e) });
+    });
+  }
+
+  function optSummary(options) {
+    if (!options) return '';
+    var parts = [];
+    Object.keys(options).forEach(function (k) {
+      if (options[k]) parts.push(k + ': ' + options[k]);
+    });
+    return parts.join(' · ');
+  }
+
+  function renderDetailView(root, state, detail, role) {
+    var o = detail.order;
+    var p = detail.product || {};
+    var shop = detail.shop || {};
+    var isSeller = role === 'seller';
+    var actions = CC.orderActions(o, role);
+
+    var when = o.requested_date ? CC.formatDate(o.requested_date) : 'To be arranged';
+    var fulfillLabel = { pickup: 'Pickup', delivery: 'Delivery', shipping: 'Shipping' }[o.fulfillment] || '—';
+
+    var hero =
+      '<div class="s4-hero"><div class="s4-hero-top">' +
+        (detail.cover ? '<img src="' + esc(detail.cover) + '" alt="">'
+                      : '<span class="s4-order-thumb s4-conv-avatar" style="width:72px;height:72px">' + CC.icon('shopping-bag') + '</span>') +
+        '<div class="s4-grow"><h2>' + esc(p.name || 'Order') + '</h2>' +
+        '<div class="s4-hero-sub">' + esc(isSeller ? 'Customer order' : shop.name || '') + ' · ' + esc(CC.formatDateTime(o.created_at)) + '</div>' +
+        '<div style="margin-top:.4rem">' + CC.orderChip(o.status, role) + '</div></div>' +
+      '</div></div>';
+
+    var detailsRows =
+      '<dl class="s4-kv">' +
+      '<dt>Quantity</dt><dd>' + esc(o.qty) + '</dd>' +
+      (optSummary(o.options) ? '<dt>Options</dt><dd>' + esc(optSummary(o.options)) + '</dd>' : '') +
+      '<dt>Estimated total</dt><dd class="s4-money">' + esc(CC.centsToPrice(o.subtotal_cents)) + '</dd>' +
+      '<dt>Fulfillment</dt><dd>' + esc(fulfillLabel) + '</dd>' +
+      '<dt>Date</dt><dd>' + esc(when) + '</dd>' +
+      '</dl>' +
+      (o.customer_note ? '<div class="s4-note-box"><strong>Customer note:</strong> ' + esc(o.customer_note) + '</div>' : '') +
+      CC.paymentNoteHtml(o, role);
+
+    /* Quotes relevant to this order (seller proposals). */
+    var quotesHtml = '';
+    if ((detail.quotes || []).length) {
+      quotesHtml = '<div class="s4-panel"><h3 class="s4-section-title">Quotes</h3>' +
+        detail.quotes.map(function (q) { return quoteRowHtml(q, role); }).join('') + '</div>';
+    } else if (isSeller && (o.status === 'pending' || o.status === 'awaiting_customer')) {
+      quotesHtml = '<div class="s4-panel"><h3 class="s4-section-title">Quotes</h3>' +
+        '<p class="cc-caption">No quotes yet. Propose changes or send a quote from the actions below.</p></div>';
+    }
+
+    var actionsHtml = '';
+    if (actions.length) {
+      actionsHtml = '<div class="s4-panel"><h3 class="s4-section-title">' +
+        (isSeller ? 'Manage this order' : 'Your options') + '</h3><div class="s4-actions">' +
+        actions.map(function (a) {
+          var cls = a.kind === 'primary' ? 'cc-btn-primary' : a.kind === 'danger' ? 'cc-btn-danger' : a.kind === 'ghost' ? 'cc-btn-ghost' : 'cc-btn-secondary';
+          return '<button type="button" class="cc-btn ' + cls + ' cc-btn-sm" data-action="' + esc(a.id) + '">' +
+            CC.icon(a.icon) + esc(a.label) + '</button>';
+        }).join('') + '</div>' +
+        '<div class="cc-alert cc-alert-danger s4-form-error" id="s4-act-err" role="alert"></div></div>';
+    }
+
+    root.innerHTML =
+      '<div class="s4-page-head"><a class="s4-back" href="orders.html">' + '<span aria-hidden="true">‹</span> All orders</a>' +
+      '<h1 class="cc-h2 s4-grow">Order detail</h1></div>' +
+      '<div class="s4-detail-grid"><div>' + hero +
+        '<div class="s4-panel"><h3 class="s4-section-title">Order summary</h3>' + detailsRows + '</div>' +
+        quotesHtml +
+      '</div><div>' +
+        '<div class="s4-panel"><h3 class="s4-section-title">Timeline</h3>' +
+        CC.timelineHtml(detail.history, o) + '</div>' +
+        actionsHtml +
+      '</div></div>';
+
+    wireActions(root, state, detail, role);
+    subscribeOrder(root, state, detail, role);
+  }
+
+  function quoteRowHtml(q, role) {
+    var canMark = role === 'seller' && q.status === 'pending';
+    return '<div class="s4-quote-card' + (q.status === 'accepted' ? ' is-accepted' : q.status === 'rejected' ? ' is-rejected' : '') + '">' +
+      '<div class="s4-quote-head"><span class="s4-quote-amount">' + esc(CC.centsToPrice(q.amount_cents)) + '</span>' +
+      CC.quoteChip(q.status) + '</div>' +
+      (q.details ? '<p class="s4-small">' + esc(q.details) + '</p>' : '') +
+      '<div class="s4-quote-meta">' +
+        (q.deposit_cents ? '<span>Deposit: ' + esc(CC.centsToPrice(q.deposit_cents)) + '</span>' : '') +
+        (q.valid_until ? '<span>Valid until ' + esc(CC.formatDate(q.valid_until)) + '</span>' : '') +
+        '<span>Sent ' + esc(CC.formatDateTime(q.created_at)) + '</span>' +
+      '</div>' +
+      (canMark ? '<div class="s4-actions"><button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-quote-accept="' + esc(q.id) + '">' +
+        CC.icon('check') + 'Mark accepted</button>' +
+        '<button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" data-quote-revise="' + esc(q.id) + '">' +
+        CC.icon('edit') + 'Revise</button></div>' : '') +
+    '</div>';
+  }
+
+  /* Modal-based confirm / prompt hooks for CC.runOrderAction. */
+  function hooksFor(root, state, detail) {
+    return {
+      confirm: function (title, body) {
+        return new Promise(function (resolve) {
+          var m = CC.s4Modal(title,
+            '<p>' + esc(body) + '</p>' +
+            '<div class="cc-modal-actions">' +
+              '<button type="button" class="cc-btn cc-btn-ghost" data-no>Keep it</button>' +
+              '<button type="button" class="cc-btn cc-btn-danger" data-yes>Yes, continue</button>' +
+            '</div>');
+          m.el.querySelector('[data-yes]').addEventListener('click', function () { m.close(); resolve(true); });
+          m.el.querySelector('[data-no]').addEventListener('click', function () { m.close(); resolve(false); });
+        });
+      },
+      prompt: function (label) {
+        return new Promise(function (resolve) {
+          var m = CC.s4Modal('Add a note',
+            '<div class="cc-field"><label class="cc-label" for="s4-p-note">' + esc(label) + '</label>' +
+            '<textarea class="cc-textarea" id="s4-p-note" style="min-height:88px" maxlength="1000"></textarea></div>' +
+            '<div class="cc-modal-actions">' +
+              '<button type="button" class="cc-btn cc-btn-ghost" data-no>Cancel</button>' +
+              '<button type="button" class="cc-btn cc-btn-primary" data-yes>Send</button>' +
+            '</div>');
+          m.el.querySelector('[data-yes]').addEventListener('click', function () {
+            var v = m.el.querySelector('#s4-p-note').value.trim();
+            m.close(); resolve(v);
+          });
+          m.el.querySelector('[data-no]').addEventListener('click', function () { m.close(); resolve(null); });
+        });
+      },
+      message: function () {
+        return CC.ensureConversation(detail.order.shop_id, detail.order.id).then(function (c) {
+          window.location.href = 'inbox.html?conv=' + encodeURIComponent(c.id);
+        });
+      },
+      quote: function (opts) {
+        return new Promise(function (resolve) {
+          CC.openQuoteModal({
+            orderRequestId: detail.order.id,
+            proposeChanges: !!opts.proposeChanges,
+            onSent: function () { resolve(); }
+          });
+          // Resolve when the modal closes without sending too.
+          var obs = new MutationObserver(function () {
+            if (!document.querySelector('[data-s4-modal]')) { obs.disconnect(); resolve(); }
+          });
+          obs.observe(document.body, { childList: true });
+        });
+      }
+    };
+  }
+
+  function wireActions(root, state, detail, role) {
+    var hooks = hooksFor(root, state, detail);
+    Array.prototype.forEach.call(root.querySelectorAll('[data-action]'), function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-action');
+        btn.disabled = true;
+        var errBox = root.querySelector('#s4-act-err');
+        function done() { btn.disabled = false; }
+        CC.runOrderAction(id, detail, role, hooks).then(function (res) {
+          done();
+          if (res && res.refresh) renderDetail(root, state);
+        }).catch(function (e) {
+          done();
+          // Trigger errors are plain-English (e.g. insufficient stock) — show verbatim.
+          if (errBox) {
+            errBox.innerHTML = CC.icon('warning') + '<div>' + esc((e && e.message) || 'Something went wrong.') + '</div>';
+            errBox.classList.add('is-show');
+            errBox.scrollIntoView({ block: 'nearest' });
+          }
+        });
+      });
+    });
+    Array.prototype.forEach.call(root.querySelectorAll('[data-quote-accept]'), function (btn) {
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        CC.setQuoteStatus(btn.getAttribute('data-quote-accept'), 'accepted')
+          .then(function () { renderDetail(root, state); })
+          .catch(function (e) {
+            btn.disabled = false;
+            CC.s4Honest('Could not update quote', '<p>' + esc(e.message) + '</p>');
+          });
+      });
+    });
+    Array.prototype.forEach.call(root.querySelectorAll('[data-quote-revise]'), function (btn) {
+      btn.addEventListener('click', function () {
+        var qid = btn.getAttribute('data-quote-revise');
+        CC.setQuoteStatus(qid, 'revised').then(function () {
+          CC.openQuoteModal({ orderRequestId: detail.order.id, proposeChanges: detail.order.status === 'awaiting_customer',
+            onSent: function () { renderDetail(root, state); } });
+        }).catch(function (e) {
+          CC.s4Honest('Could not revise quote', '<p>' + esc(e.message) + '</p>');
+        });
+      });
+    });
+  }
+
+  /* Live-refresh the detail when the order row or its history changes. */
+  var _orderUnsub = null;
+  function subscribeOrder(root, state, detail, role) {
+    if (_orderUnsub) { try { _orderUnsub(); } catch (e) {} _orderUnsub = null; }
+    if (!CC.sb || !CC.live) return;
+    try {
+      var ch = CC.sb.channel('order-' + detail.order.id)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'cc_order_requests', filter: 'id=eq.' + detail.order.id },
+          function () { renderDetail(root, state); })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'cc_order_status_history', filter: 'order_id=eq.' + detail.order.id },
+          function () { renderDetail(root, state); })
+        .subscribe();
+      _orderUnsub = function () { try { CC.sb.removeChannel(ch); } catch (e) {} };
+    } catch (e) {}
+  }
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

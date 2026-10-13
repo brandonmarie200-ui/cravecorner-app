@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="CraveCorner seller tools — weekly menus, availability, and inventory.">
+<title>Weekly Menu — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+
+<!-- ============================================================
+     STAGE 3 (Food Availability) — page-scoped styles.
+     Only .cc-menu-* / .cc-avail-* classes are defined here; the design
+     system itself is untouched.
+     ============================================================ -->
+<style>
+.cc-menu-toasts { position: fixed; left: 50%; transform: translateX(-50%); bottom: 88px;
+  z-index: 200; display: flex; flex-direction: column; gap: var(--cc-space-2);
+  width: min(92vw, 420px); }
+.cc-menu-toast { margin: 0; box-shadow: var(--cc-shadow-pop); }
+.cc-menu-tabs { display: flex; gap: var(--cc-space-2); margin: var(--cc-space-4) 0;
+  border-bottom: 2px solid var(--cc-border); padding-bottom: var(--cc-space-2); }
+.cc-menu-tab { border: 0; background: none; font: inherit; font-weight: 700;
+  color: var(--cc-cocoa-soft); padding: var(--cc-space-2) var(--cc-space-3);
+  border-radius: var(--cc-radius-md); cursor: pointer; min-height: 44px; }
+.cc-menu-tab[aria-selected="true"] { color: var(--cc-pink-deep);
+  box-shadow: inset 0 -3px 0 var(--cc-pink-deep); border-radius: var(--cc-radius-md) var(--cc-radius-md) 0 0; }
+.cc-menu-weeknav { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--cc-space-2); margin-bottom: var(--cc-space-3); }
+.cc-menu-weeklabel { font-weight: 700; font-family: var(--cc-font-head); }
+.cc-menu-daystrip { display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: var(--cc-space-1); margin-bottom: var(--cc-space-4); }
+.cc-menu-day { border: 1px solid var(--cc-border); background: var(--cc-white);
+  border-radius: var(--cc-radius-md); padding: var(--cc-space-2) 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px;
+  font: inherit; color: var(--cc-cocoa); }
+.cc-menu-day .dow { font-size: var(--cc-text-xs); color: var(--cc-cocoa-mute); font-weight: 600; }
+.cc-menu-day .dnum { font-size: var(--cc-text-lg); font-weight: 700; font-family: var(--cc-font-head); }
+.cc-menu-day .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cc-mint); }
+.cc-menu-day .dot.soldout { background: var(--cc-danger); }
+.cc-menu-day .dot.none { background: transparent; }
+.cc-menu-day[aria-pressed="true"] { border-color: var(--cc-pink-deep);
+  box-shadow: 0 0 0 2px var(--cc-pink-200); }
+.cc-menu-day.is-today .dnum { color: var(--cc-pink-deep); }
+.cc-menu-card { margin-bottom: var(--cc-space-3); }
+.cc-menu-card .cc-card-head { display: flex; justify-content: space-between; align-items: flex-start;
+  gap: var(--cc-space-2); margin-bottom: var(--cc-space-2); }
+.cc-menu-meta { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cc-space-1) var(--cc-space-3);
+  font-size: var(--cc-text-sm); color: var(--cc-cocoa-soft); margin: var(--cc-space-2) 0; }
+.cc-menu-meta dt { font-weight: 600; color: var(--cc-cocoa-mute); font-size: var(--cc-text-xs);
+  text-transform: uppercase; letter-spacing: .04em; }
+.cc-menu-meta dd { margin: 0 0 var(--cc-space-1); }
+.cc-menu-actions { display: flex; flex-wrap: wrap; gap: var(--cc-space-2); margin-top: var(--cc-space-3); }
+.cc-menu-chip { display: inline-flex; align-items: center; gap: 4px; }
+.cc-menu-chip svg { width: 14px; height: 14px; }
+.cc-avail-countdown { display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--cc-text-sm); font-weight: 600; color: var(--cc-mint-ink); }
+.cc-avail-countdown svg { width: 16px; height: 16px; }
+.cc-avail-countdown.is-passed { color: var(--cc-cocoa-mute); }
+.cc-avail-list { list-style: none; margin: var(--cc-space-3) 0; padding: 0;
+  display: flex; flex-direction: column; gap: var(--cc-space-2); }
+.cc-avail-row { border: 1px solid var(--cc-border); border-radius: var(--cc-radius-lg);
+  background: var(--cc-white); padding: var(--cc-space-3); display: flex; flex-wrap: wrap;
+  gap: var(--cc-space-2); align-items: center; }
+.cc-avail-date { flex: 1 1 140px; display: flex; flex-direction: column; }
+.cc-avail-meta { display: flex; flex-direction: column; gap: var(--cc-space-1); align-items: flex-start; }
+.cc-avail-shipnote { display: flex; gap: var(--cc-space-1); flex-basis: 100%; margin: var(--cc-space-1) 0 0; }
+.cc-avail-shipnote svg { width: 14px; height: 14px; flex: none; margin-top: 2px; }
+.cc-avail-title { display: flex; align-items: center; gap: var(--cc-space-2); }
+.cc-avail-title svg { width: 20px; height: 20px; }
+.cc-avail-note { display: flex; gap: var(--cc-space-2); align-items: flex-start;
+  background: var(--cc-lilac-50); border: 1px solid var(--cc-lilac-200);
+  border-radius: var(--cc-radius-lg); padding: var(--cc-space-3); }
+.cc-avail-note svg { width: 18px; height: 18px; flex: none; margin-top: 2px; }
+.cc-avail-loading { display: flex; flex-direction: column; gap: var(--cc-space-2); }
+.cc-avail-soldout { text-align: center; padding: var(--cc-space-4) 0; }
+.cc-occ-row { border: 1px solid var(--cc-border); border-radius: var(--cc-radius-lg);
+  background: var(--cc-white); padding: var(--cc-space-3); margin-bottom: var(--cc-space-2); }
+.cc-occ-row .cc-occ-top { display: flex; justify-content: space-between; align-items: flex-start;
+  gap: var(--cc-space-2); flex-wrap: wrap; }
+.cc-occ-orders { font-size: var(--cc-text-sm); color: var(--cc-cocoa-soft); margin: var(--cc-space-1) 0; }
+.cc-menu-ack { margin-top: var(--cc-space-3); align-items: flex-start; }
+.cc-menu-ack input { margin-top: 4px; }
+.cc-menu-formgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--cc-space-3); }
+.cc-menu-formgrid .cc-field.full { grid-column: 1 / -1; }
+.cc-menu-daycheck { display: flex; flex-wrap: wrap; gap: var(--cc-space-2); }
+.cc-menu-daycheck .cc-check { margin: 0; }
+.cc-menu-datelist { display: flex; flex-wrap: wrap; gap: var(--cc-space-1); margin-top: var(--cc-space-2); }
+.cc-menu-datelist .cc-badge { display: inline-flex; align-items: center; gap: 6px; }
+.cc-menu-datelist button { border: 0; background: none; cursor: pointer; font: inherit;
+  color: inherit; padding: 0 2px; line-height: 1; }
+.cc-menu-legal { display: flex; gap: var(--cc-space-2); align-items: flex-start;
+  background: var(--cc-mango-50); border: 1px solid var(--cc-mango-200);
+  border-radius: var(--cc-radius-md); padding: var(--cc-space-2) var(--cc-space-3);
+  font-size: var(--cc-text-sm); margin-top: var(--cc-space-2); }
+.cc-menu-legal svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+.cc-menu-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
+  gap: var(--cc-space-2); }
+.cc-menu-log li { border-left: 3px solid var(--cc-lilac-200); padding-left: var(--cc-space-2);
+  font-size: var(--cc-text-sm); }
+.cc-menu-log .chg-pos { color: var(--cc-mint-ink); font-weight: 700; }
+.cc-menu-log .chg-neg { color: var(--cc-danger-ink); font-weight: 700; }
+.cc-menu-sec-head { display: flex; justify-content: space-between; align-items: center;
+  gap: var(--cc-space-2); margin: var(--cc-space-5) 0 var(--cc-space-3); flex-wrap: wrap; }
+.cc-menu-sec-head h2 { margin: 0; }
+@media (max-width: 560px) {
+  .cc-menu-meta { grid-template-columns: 1fr; }
+  .cc-menu-formgrid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div class="pg-head">
+      <a class="pg-back" href="profile.html"><span data-icon="user" aria-hidden="true"></span>Back to Profile</a>
+      <div class="cc-menu-sec-head" style="margin-bottom:0">
+        <div>
+          <h1>Weekly Menu</h1>
+          <p class="cc-lead" id="menu-shop-line">Availability, schedules &amp; inventory.</p>
+        </div>
+        <button type="button" class="cc-btn cc-btn-primary" id="menu-new-schedule" hidden>
+          <span data-icon="plus" aria-hidden="true"></span>New schedule
+        </button>
+      </div>
+    </div>
+
+    <!-- Auth / shop / backend gating renders here -->
+    <div id="menu-gate"></div>
+
+    <!-- Seller app (hidden until gate passes) -->
+    <div id="menu-app" hidden>
+      <div class="cc-menu-tabs" role="tablist" aria-label="Menu management">
+        <button type="button" class="cc-menu-tab" role="tab" id="tabbtn-schedule"
+          aria-selected="true" aria-controls="tab-schedule">Weekly Menu</button>
+        <button type="button" class="cc-menu-tab" role="tab" id="tabbtn-inventory"
+          aria-selected="false" aria-controls="tab-inventory" tabindex="-1">Inventory</button>
+        <button type="button" class="cc-menu-tab" role="tab" id="tabbtn-fulfill"
+          aria-selected="false" aria-controls="tab-fulfill" tabindex="-1">Fulfillment</button>
+      </div>
+
+      <section id="tab-schedule" role="tabpanel" aria-labelledby="tabbtn-schedule">
+        <div class="cc-menu-weeknav">
+          <button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" id="menu-prev-week" aria-label="Previous week">
+            <span data-icon="chev-left" aria-hidden="true"></span>
+          </button>
+          <div style="text-align:center">
+            <div class="cc-menu-weeklabel" id="menu-week-label"></div>
+            <button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" id="menu-this-week">Today</button>
+          </div>
+          <button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" id="menu-next-week" aria-label="Next week">
+            <span data-icon="chev-right" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="cc-menu-daystrip" id="menu-daystrip" role="group" aria-label="Pick a day"></div>
+        <div id="menu-dayview"></div>
+
+        <div class="cc-menu-sec-head">
+          <h2>Your schedules</h2>
+          <span class="cc-caption" id="menu-sched-count"></span>
+        </div>
+        <div id="menu-schedules"></div>
+      </section>
+
+      <section id="tab-inventory" role="tabpanel" aria-labelledby="tabbtn-inventory" hidden>
+        <div id="menu-inventory"></div>
+      </section>
+
+      <section id="tab-fulfill" role="tabpanel" aria-labelledby="tabbtn-fulfill" hidden>
+        <div id="menu-fulfill"></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<!-- ============================================================
+     STAGE 3 (Food Availability) — page extension. The live backend
+     (supabase + cc.js boot probe) is required for schedules,
+     occurrences, and inventory to load real data.
+     ============================================================ -->
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="js/data/demo.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/cc-menu.js"></script>
+<script src="assets/js/cc-inventory.js"></script>
+<script>
+/* ==========================================================================
+   STAGE 3 — menu.html page wiring (seller weekly menu / inventory /
+   fulfillment). All data flows through CC_MENU / CC_INV; when the backend
+   is not live the gate below explains that honestly instead of faking data.
+   ========================================================================== */
+(function () {
+  'use strict';
+  if (!window.CC || !window.CC_MENU) return;
+
+  var CC = window.CC, M = window.CC_MENU, INV = window.CC_INV;
+  window.CC_ACTIVE_NAV = 'profile';
+
+  /* Hydrate static [data-icon] slots */
+  function hydrateIcons(root) {
+    (root || document).querySelectorAll('[data-icon]').forEach(function (el) {
+      var tmp = document.createElement('span');
+      tmp.innerHTML = CC.icon(el.getAttribute('data-icon'));
+      if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+    });
+  }
+
+  var state = {
+    shop: null, products: [], schedules: [],
+    weekStart: null, selectedDate: null,
+    activeTab: 'schedule', invProductId: null
+  };
+
+  function shopTz() { return (state.shop && state.shop.timezone) || 'America/Chicago'; }
+  function todayShop() { return M.todayInTz(shopTz()); }
+
+  function failBox(err, retry) {
+    return CC.states.error({
+      title: 'Something went wrong',
+      body: (err && err.message) || 'Please try again.',
+      retryLabel: 'Try again'
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Gate: backend → sign-in → seller shop                                */
+  /* ------------------------------------------------------------------ */
+  function renderGate() {
+    var gate = document.getElementById('menu-gate');
+    var app = document.getElementById('menu-app');
+    var newBtn = document.getElementById('menu-new-schedule');
+    gate.innerHTML = ''; app.hidden = true; newBtn.hidden = true;
+
+    CC.ready.then(function (res) {
+      if (!res.live) {
+        gate.innerHTML = CC.states.empty({
+          icon: 'calendar', title: 'Weekly menus need the live backend',
+          body: 'Schedules, availability, and inventory load real data once the backend is connected. Nothing here is faked in the meantime.'
+        });
+        return;
+      }
+      if (!res.user) {
+        gate.innerHTML = CC.states.empty({
+          icon: 'user', title: 'Sign in to manage your menu',
+          body: 'Weekly menus belong to a seller account. Sign in to continue.'
+        }) + '<div class="cc-empty-actions"><a class="cc-btn cc-btn-primary" href="profile.html">Go to Profile to sign in</a></div>';
+        hydrateIcons(gate);
+        return;
+      }
+      gate.innerHTML = '<div role="status" aria-label="Loading">' +
+        '<div class="cc-skeleton" style="height:22px;width:50%"></div>' +
+        '<div class="cc-skeleton" style="height:120px"></div></div>';
+      M.getMyShop().then(function (shop) {
+        if (!shop) {
+          gate.innerHTML = CC.states.empty({
+            icon: 'store', title: 'No seller shop yet',
+            body: 'Weekly menus are created from your seller shop. Shop onboarding arrives in Stage 2 — once you have a shop, your menus live here.'
+          });
+          return;
+        }
+        state.shop = shop;
+        gate.innerHTML = '';
+        app.hidden = false; newBtn.hidden = false;
+        document.getElementById('menu-shop-line').textContent =
+          shop.name + ' · times shown in ' + shopTz();
+        state.weekStart = M.mondayOfWeek(todayShop());
+        state.selectedDate = todayShop();
+        loadAll();
+      }).catch(function (err) {
+        gate.innerHTML = failBox(err);
+        var b = gate.querySelector('.cc-empty-actions button');
+        if (b) b.addEventListener('click', renderGate);
+      });
+    });
+  }
+
+  function loadAll() {
+    return Promise.all([M.getProducts(state.shop.id), M.getSchedules(state.shop.id)])
+      .then(function (res) {
+        state.products = res[0]; state.schedules = res[1];
+        renderWeekStrip(); renderDayView(); renderSchedules();
+        if (state.activeTab === 'inventory') renderInventory();
+        if (state.activeTab === 'fulfill') renderFulfillment();
+      })
+      .catch(function (err) { M.toast(err.message || 'Could not load menus.', 'error'); });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Tabs                                                               */
+  /* ------------------------------------------------------------------ */
+  function setTab(name) {
+    state.activeTab = name;
+    ['schedule', 'inventory', 'fulfill'].forEach(function (t) {
+      document.getElementById('tab-' + t).hidden = (t !== name);
+      var b = document.getElementById('tabbtn-' + t);
+      b.setAttribute('aria-selected', t === name ? 'true' : 'false');
+      b.tabIndex = t === name ? 0 : -1;
+    });
+    if (name === 'inventory') renderInventory();
+    if (name === 'fulfill') renderFulfillment();
+  }
+  document.querySelectorAll('.cc-menu-tab').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      setTab(btn.id.replace('tabbtn-', ''));
+    });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Week strip + day view                                               */
+  /* ------------------------------------------------------------------ */
+  function renderWeekStrip() {
+    var strip = document.getElementById('menu-daystrip');
+    var label = document.getElementById('menu-week-label');
+    var mon = state.weekStart;
+    label.textContent = M.fmtDateLong(mon, shopTz()).replace(/, \d{4}$/, '') + ' – ' +
+      M.fmtDateLong(M.addDays(mon, 6), shopTz()).replace(/^[A-Za-z]+, /, '');
+    // occurrence presence for the week (for dots)
+    M.getOccurrences(state.schedules, mon, M.addDays(mon, 6)).then(function (occs) {
+      var byDate = {};
+      occs.forEach(function (o) {
+        var e = byDate[o.occ_date] || (byDate[o.occ_date] = { n: 0, soldout: true });
+        e.n++;
+        if (o.status === 'active' && (o.quantity_left === null || o.quantity_left > 0)) e.soldout = false;
+      });
+      var html = '';
+      for (var i = 0; i < 7; i++) {
+        var dt = M.addDays(mon, i);
+        var e = byDate[dt];
+        var dot = e ? '<span class="dot' + (e.soldout ? ' soldout' : '') + '"></span>' : '<span class="dot none"></span>';
+        html += '<button type="button" class="cc-menu-day' + (dt === todayShop() ? ' is-today' : '') + '"' +
+          ' data-date="' + dt + '" aria-pressed="' + (dt === state.selectedDate) + '"' +
+          ' aria-label="' + M.fmtDateLong(dt, shopTz()) + (e ? ', ' + e.n + ' slot(s)' : ', no slots') + '">' +
+          '<span class="dow">' + M.dowLabel(dt) + '</span>' +
+          '<span class="dnum">' + (+dt.slice(8, 10)) + '</span>' + dot + '</button>';
+      }
+      strip.innerHTML = html;
+      strip.querySelectorAll('[data-date]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          state.selectedDate = b.getAttribute('data-date');
+          renderWeekStrip(); renderDayView();
+        });
+      });
+    });
+  }
+  document.getElementById('menu-prev-week').addEventListener('click', function () {
+    state.weekStart = M.addDays(state.weekStart, -7); renderWeekStrip();
+  });
+  document.getElementById('menu-next-week').addEventListener('click', function () {
+    state.weekStart = M.addDays(state.weekStart, 7); renderWeekStrip();
+  });
+  document.getElementById('menu-this-week').addEventListener('click', function () {
+    state.weekStart = M.mondayOfWeek(todayShop());
+    state.selectedDate = todayShop();
+    renderWeekStrip(); renderDayView();
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Occurrence day view                                                 */
+  /* ------------------------------------------------------------------ */
+  function statusBadge(st) {
+    if (st === 'sold_out') return '<span class="cc-badge cc-badge-soldout">Sold Out</span>';
+    if (st === 'paused') return '<span class="cc-badge cc-badge-warn">Paused</span>';
+    return '<span class="cc-badge cc-badge-ready">Active</span>';
+  }
+
+  function scheduleTitle(s) {
+    if (s.product_id) {
+      var p = state.products.filter(function (x) { return x.id === s.product_id; })[0];
+      return p ? p.name : 'A listing';
+    }
+    var names = (s._items || []).map(function (it) {
+      return (it.cc_products && it.cc_products.name) || 'A listing';
+    });
+    return names.length ? 'Full daily menu: ' + names.join(', ') : 'Full daily menu';
+  }
+
+  function renderDayView() {
+    var host = document.getElementById('menu-dayview');
+    var dt = state.selectedDate;
+    host.innerHTML = '<div role="status" aria-label="Loading day"><div class="cc-skeleton" style="height:90px"></div></div>';
+    M.getDayView(state.shop.id, dt).then(function (view) {
+      var tz = shopTz();
+      var html = '<div class="cc-menu-sec-head"><h2>' + CC.esc(M.fmtDateLong(dt, tz)) + '</h2>' +
+        '<span class="cc-caption">' + view.occurrences.length + ' slot(s) · read-only order counts</span></div>';
+      if (!view.occurrences.length) {
+        html += CC.states.empty({
+          icon: 'calendar', title: 'No slots this day',
+          body: 'Nothing is scheduled for ' + M.fmtDateLong(dt, tz) + '. Create a schedule below or add a holiday pause.'
+        });
+      } else {
+        html += view.occurrences.map(function (o) {
+          var s = o._schedule || {};
+          var cd = M.countdownText(o.cutoff_at);
+          var qtyTxt = o.quantity_left === null ? 'Unlimited' : o.quantity_left + ' left';
+          var ordersTxt = o._committed
+            ? '<strong>' + o._committed + '</strong> confirmed order(s)'
+            : 'No confirmed orders';
+          if (o._pending) ordersTxt += ' · ' + o._pending + ' awaiting review';
+          if (o._held) ordersTxt += ' · ' + o._held + ' unit(s) held';
+          var auto = s.inventory_mode === 'auto';
+          return '<div class="cc-occ-row" data-occ="' + o.id + '">' +
+            '<div class="cc-occ-top"><div><strong>' + CC.esc(scheduleTitle(s)) + '</strong>' +
+            '<div class="cc-caption">' + CC.esc(M.fmtTime(o.window_start, tz)) + ' – ' +
+            CC.esc(M.fmtTime(o.window_end, tz)) + ' · cutoff: ' + CC.esc(cd) +
+            ' · ' + CC.esc(qtyTxt) + (auto ? ' · auto' : ' · manual') + '</div>' +
+            '<div class="cc-occ-orders">' + ordersTxt + '</div></div>' +
+            '<div>' + statusBadge(o.status) + '</div></div>' +
+            '<div class="cc-menu-actions">' +
+            '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-act="edit-occ">Edit this date</button>' +
+            (auto ? '' : '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-act="qty-occ">Adjust quantity</button>') +
+            (o.status === 'sold_out'
+              ? '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-act="unsoldout">Back in stock</button>'
+              : '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-act="soldout">Mark sold out</button>') +
+            (o.status === 'paused'
+              ? '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-act="unpause-occ">Resume this date</button>'
+              : '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-act="pause-occ">Pause this date</button>') +
+            '</div></div>';
+        }).join('');
+      }
+      // Holiday pause for schedules with no slot this day
+      var withSlot = {};
+      view.occurrences.forEach(function (o) { withSlot[o.schedule_id] = 1; });
+      var pausable = view.schedules.filter(function (s) {
+        return s.status === 'active' && !withSlot[s.id] && s.kind === 'weekly' &&
+          (s.days || []).indexOf(M.dowMon0(dt)) !== -1;
+      });
+      if (pausable.length) {
+        html += '<div class="cc-menu-actions"><button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" id="menu-holiday">' +
+          CC.icon('calendar') + ' Add holiday pause for this date</button></div>';
+      }
+      host.innerHTML = html;
+      hydrateIcons(host);
+      host.querySelectorAll('[data-occ]').forEach(function (row) {
+        var occId = row.getAttribute('data-occ');
+        row.querySelectorAll('[data-act]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            occurrenceAction(btn.getAttribute('data-act'), occId);
+          });
+        });
+      });
+      var hol = document.getElementById('menu-holiday');
+      if (hol) hol.addEventListener('click', function () { holidayPrompt(pausable); });
+    }).catch(function (err) {
+      host.innerHTML = failBox(err);
+      var b = host.querySelector('.cc-empty-actions button');
+      if (b) b.addEventListener('click', renderDayView);
+    });
+  }
+
+  function findOcc(occId) {
+    return M.getDayView(state.shop.id, state.selectedDate).then(function (view) {
+      var hit = view.occurrences.filter(function (o) { return o.id === occId; })[0];
+      if (!hit) throw new Error('That slot is no longer on this date.');
+      return hit;
+    });
+  }
+
+  function occurrenceAction(act, occId) {
+    findOcc(occId).then(function (o) {
+      var s = o._schedule, tz = shopTz();
+      if (act === 'pause-occ') {
+        M.confirmDialog({
+          title: 'Pause ' + M.fmtDateLong(o.occ_date, tz) + '?',
+          bodyHtml: o._committed
+            ? '<p>This date has <strong>' + o._committed + '</strong> confirmed order(s). They keep their slots — new requests stop for this date only.</p>'
+            : '<p>New requests stop for this date only. The rest of the schedule is untouched.</p>',
+          confirmLabel: 'Pause this date',
+          requireAcknowledge: !!o._committed,
+          acknowledgeLabel: 'I understand confirmed orders are affected'
+        }).then(function (ok) {
+          if (!ok) return;
+          M.setOccurrenceStatus(occId, s.id, o.occ_date, 'paused')
+            .then(function () { M.toast('Date paused.', 'success'); refresh(); })
+            .catch(function (err) { M.toast(err.message, 'error'); });
+        });
+      } else if (act === 'unpause-occ') {
+        M.unpauseDate(s.id, o.occ_date)
+          .then(function () { M.toast('Date resumed.', 'success'); refresh(); })
+          .catch(function (err) { M.toast(err.message, 'error'); });
+      } else if (act === 'qty-occ') {
+        adjustQtyModal(o);
+      } else if (act === 'soldout' || act === 'unsoldout') {
+        var soldOut = act === 'soldout';
+        M.confirmDialog({
+          title: soldOut ? 'Mark sold out?' : 'Back in stock?',
+          bodyHtml: soldOut
+            ? '<p>Customers will see this date as sold out and the Preorder button disables.</p>'
+            : '<p>This date becomes bookable again.</p>',
+          confirmLabel: soldOut ? 'Mark sold out' : 'Back in stock'
+        }).then(function (ok) {
+          if (!ok) return;
+          INV.setSoldOut(occId, soldOut)
+            .then(function () { M.toast(soldOut ? 'Marked sold out.' : 'Back in stock.', 'success'); refresh(); })
+            .catch(function (err) { M.toast(err.message, 'error'); });
+        });
+      } else if (act === 'edit-occ') {
+        editOccurrenceModal(o);
+      }
+    }).catch(function (err) { M.toast(err.message, 'error'); });
+  }
+
+  function refresh() {
+    loadAll().then(function () { renderWeekStrip(); });
+  }
+
+  function holidayPrompt(schedules) {
+    var opts = schedules.map(function (s, i) {
+      return '<label class="cc-check"><input type="checkbox" value="' + i + '" checked> ' +
+        '<span>' + CC.esc(scheduleTitle(s)) + '</span></label>';
+    }).join('');
+    var w = M.openModal('Pause ' + M.fmtDateLong(state.selectedDate, shopTz()),
+      '<p>Mark this date as a holiday / day off. It stays on the schedule but takes no orders.</p>' + opts,
+      '<button type="button" class="cc-btn cc-btn-secondary" data-modal-close>Cancel</button>' +
+      '<button type="button" class="cc-btn cc-btn-primary" id="cc-hol-ok">Pause selected</button>');
+    w.querySelector('#cc-hol-ok').addEventListener('click', function () {
+      var picks = Array.prototype.filter.call(w.querySelectorAll('input[type=checkbox]'),
+        function (c) { return c.checked; }).map(function (c) { return schedules[+c.value]; });
+      M.closeModal();
+      if (!picks.length) return;
+      Promise.all(picks.map(function (s) { return M.pauseDate(s.id, state.selectedDate, shopTz()); }))
+        .then(function () { M.toast('Holiday pause added.', 'success'); refresh(); })
+        .catch(function (err) { M.toast(err.message, 'error'); });
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Schedule list                                                       */
+  /* ------------------------------------------------------------------ */
+  function kindDetail(s) {
+    if (s.kind === 'weekly') {
+      var names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      return 'Every week · ' + (s.days || []).sort().map(function (d) { return names[d]; }).join(', ');
+    }
+    if (s.kind === 'range') return 'Limited range · ' + s.start_date + ' → ' + (s.end_date || '…');
+    return 'Specific dates';
+  }
+
+  function renderSchedules() {
+    var host = document.getElementById('menu-schedules');
+    document.getElementById('menu-sched-count').textContent =
+      state.schedules.length ? state.schedules.length + ' total' : '';
+    if (!state.schedules.length) {
+      host.innerHTML = CC.states.empty({
+        icon: 'calendar', title: 'No schedules yet',
+        body: 'Create your first schedule — pick a listing (or your full daily menu), the days it runs, times, cutoff, and quantity.',
+        actionLabel: 'New schedule', actionHref: '#'
+      });
+      var a = host.querySelector('.cc-empty-actions a');
+      if (a) a.addEventListener('click', function (e) { e.preventDefault(); openScheduleModal(null); });
+      return;
+    }
+    host.innerHTML = state.schedules.map(function (s) {
+      var qtyTxt = s.quantity === null ? 'Unlimited' : s.quantity + ' per slot';
+      var exPaused = (s._exceptions || []).filter(function (x) { return x.kind === 'paused'; }).length;
+      var chips = M.fulfillmentChips(M.effectiveFulfillment(s, null, state.shop));
+      return '<article class="cc-card cc-menu-card" data-sched="' + s.id + '">' +
+        '<div class="cc-card-head"><div><h3 class="cc-h3" style="margin:0">' + CC.esc(scheduleTitle(s)) + '</h3>' +
+        '<div class="cc-caption">' + CC.esc(kindDetail(s)) + '</div></div>' +
+        '<div>' + (s.status === 'paused'
+          ? '<span class="cc-badge cc-badge-warn">Paused</span>'
+          : '<span class="cc-badge cc-badge-ready">Active</span>') + '</div></div>' +
+        '<dl class="cc-menu-meta">' +
+        '<div><dt>Pickup window</dt><dd>' + CC.esc(fmtClock(s.start_time)) + ' – ' + CC.esc(fmtClock(s.end_time)) + '</dd></div>' +
+        '<div><dt>Order cutoff</dt><dd>' + (s.preorder_cutoff_hours > 0 ? s.preorder_cutoff_hours + 'h before pickup' : 'No cutoff') + '</dd></div>' +
+        '<div><dt>Quantity</dt><dd>' + CC.esc(qtyTxt) + '</dd></div>' +
+        '<div><dt>Inventory</dt><dd>' + (s.inventory_mode === 'auto' ? 'Auto' : 'Manual') + '</dd></div>' +
+        (s.kind !== 'dates' ? '<div><dt>Runs</dt><dd>' + CC.esc(s.start_date) + ' → ' + CC.esc(s.end_date || 'ongoing') + '</dd></div>' : '') +
+        (exPaused ? '<div><dt>Paused dates</dt><dd>' + exPaused + ' holiday(s)</dd></div>' : '') +
+        '</dl>' +
+        (chips ? '<div>' + chips + '</div>' : '') +
+        '<div class="cc-menu-actions">' +
+        '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-act="edit">Edit</button>' +
+        (s.status === 'paused'
+          ? '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-act="resume">Resume schedule</button>'
+          : '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-act="pause">Pause schedule</button>') +
+        (s.kind === 'weekly' ? '<button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" data-act="extend">Extend 12 weeks</button>' : '') +
+        '<button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" data-act="holiday">Add holiday</button>' +
+        '<button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" data-act="delete">Delete</button>' +
+        '</div></article>';
+    }).join('');
+    host.querySelectorAll('[data-sched]').forEach(function (card) {
+      var id = card.getAttribute('data-sched');
+      card.querySelectorAll('[data-act]').forEach(function (btn) {
+        btn.addEventListener('click', function () { scheduleAction(btn.getAttribute('data-act'), id); });
+      });
+    });
+  }
+
+  function fmtClock(t) {
+    var p = /^(\d{1,2}):(\d{2})/.exec(t || '');
+    if (!p) return t || '';
+    var h = +p[1], ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12; if (h === 0) h = 12;
+    return h + ':' + p[2] + ' ' + ap;
+  }
+
+  function scheduleAction(act, id) {
+    var s = state.schedules.filter(function (x) { return x.id === id; })[0];
+    if (!s) return;
+    if (act === 'edit') { openScheduleModal(s); return; }
+    if (act === 'pause') {
+      M.confirmDialog({
+        title: 'Pause entire schedule?',
+        bodyHtml: '<p><strong>' + CC.esc(scheduleTitle(s)) + '</strong> stops taking orders on all future dates. Confirmed orders keep their slots.</p>',
+        confirmLabel: 'Pause schedule'
+      }).then(function (ok) {
+        if (!ok) return;
+        M.pauseSchedule(id, shopTz())
+          .then(function () { M.toast('Schedule paused.', 'success'); refresh(); })
+          .catch(function (err) { M.toast(err.message, 'error'); });
+      });
+      return;
+    }
+    if (act === 'resume') {
+      M.resumeSchedule(id, shopTz())
+        .then(function () { M.toast('Schedule resumed.', 'success'); refresh(); })
+        .catch(function (err) { M.toast(err.message, 'error'); });
+      return;
+    }
+    if (act === 'extend') {
+      M.extendSchedule(id, shopTz())
+        .then(function (n) { M.toast('Added ' + n + ' more date(s).', 'success'); refresh(); })
+        .catch(function (err) { M.toast(err.message, 'error'); });
+      return;
+    }
+    if (act === 'holiday') {
+      var w = M.openModal('Add holiday pause',
+        '<div class="cc-field"><label class="cc-label" for="cc-hol-date">Date <span class="cc-req">*</span></label>' +
+        '<input class="cc-input" type="date" id="cc-hol-date" min="' + todayShop() + '" value="' + todayShop() + '"></div>',
+        '<button type="button" class="cc-btn cc-btn-secondary" data-modal-close>Cancel</button>' +
+        '<button type="button" class="cc-btn cc-btn-primary" id="cc-hol2-ok">Pause date</button>');
+      w.querySelector('#cc-hol2-ok').addEventListener('click', function () {
+        var dt = w.querySelector('#cc-hol-date').value;
+        M.closeModal();
+        if (!dt) return;
+        M.pauseDate(id, dt, shopTz())
+          .then(function () { M.toast('Holiday pause added.', 'success'); refresh(); })
+          .catch(function (err) { M.toast(err.message, 'error'); });
+      });
+      return;
+    }
+    if (act === 'delete') {
+      M.deleteSchedule(id)
+        .then(function (done) { if (done) { M.toast('Schedule deleted.', 'success'); refresh(); } })
+        .catch(function (err) { M.toast(err.message, 'error'); });
+      return;
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Schedule create / edit form                                         */
+  /* ------------------------------------------------------------------ */
+  var DOW_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  var formDates = []; // for kind='dates'
+
+  function fulfillmentDefaults() {
+    return {
+      pickup: !!(state.shop && state.shop.fulfillment_pickup),
+      delivery: !!(state.shop && state.shop.fulfillment_delivery),
+      shipping: !!(state.shop && state.shop.fulfillment_shipping)
+    };
+  }
+
+  function openScheduleModal(s) {
+    var isEdit = !!s;
+    formDates = [];
+    var prodOpts = '<option value="__full__">Full daily menu (multiple listings)</option>' +
+      state.products.map(function (p) {
+        var sel = s && s.product_id === p.id ? ' selected' : '';
+        return '<option value="' + p.id + '"' + sel + '>' + CC.esc(p.name) + ' · ' +
+          CC.centsToPrice(p.price_cents) + '</option>';
+      }).join('');
+    var fullSel = !s || !s.product_id;
+    var itemsSel = {};
+    if (s) (s._items || []).forEach(function (it) { itemsSel[it.product_id] = 1; });
+    var itemsHtml = state.products.map(function (p) {
+      return '<label class="cc-check"><input type="checkbox" data-item="' + p.id + '"' +
+        (itemsSel[p.id] ? ' checked' : '') + '> <span>' + CC.esc(p.name) + '</span></label>';
+    }).join('');
+    var days = (s && s.days) || [];
+    var dayHtml = DOW_NAMES.map(function (n, i) {
+      return '<label class="cc-check"><input type="checkbox" data-day="' + i + '"' +
+        (days.indexOf(i) !== -1 ? ' checked' : '') + '> <span>' + n + '</span></label>';
+    }).join('');
+    var kind = (s && s.kind) || 'weekly';
+    var ff = s ? (s.fulfillment || {}) : fulfillmentDefaults();
+    var tz = shopTz(), today = todayShop();
+
+    var body =
+      '<div class="cc-menu-formgrid">' +
+      '<div class="cc-field full"><label class="cc-label" for="cc-sf-product">Listing <span class="cc-req">*</span></label>' +
+        '<select class="cc-select" id="cc-sf-product">' + prodOpts + '</select></div>' +
+      '<div class="cc-field full" id="cc-sf-items-wrap"' + (fullSel ? '' : ' hidden') + '>' +
+        '<span class="cc-label">Listings in this daily menu <span class="cc-req">*</span></span>' +
+        '<div class="cc-menu-daycheck">' + itemsHtml + '</div></div>' +
+      '<div class="cc-field full"><span class="cc-label">Schedule kind <span class="cc-req">*</span></span>' +
+        '<div class="cc-menu-daycheck" role="radiogroup" aria-label="Schedule kind">' +
+        ['weekly', 'dates', 'range'].map(function (k) {
+          return '<label class="cc-radio"><input type="radio" name="cc-sf-kind" value="' + k + '"' +
+            (kind === k ? ' checked' : '') + (isEdit ? ' disabled' : '') + '> ' +
+            '<span>' + M.KIND_LABEL[k] + '</span></label>';
+        }).join('') + '</div>' +
+        (isEdit ? '<p class="cc-caption">Kind can\u2019t change after creation — delete and recreate to switch kinds.</p>' : '') + '</div>' +
+      '<div class="cc-field full" id="cc-sf-days-wrap"' + (kind === 'weekly' ? '' : ' hidden') + '>' +
+        '<span class="cc-label">Days of the week <span class="cc-req">*</span></span>' +
+        '<div class="cc-menu-daycheck">' + dayHtml + '</div></div>' +
+      '<div class="cc-field full" id="cc-sf-dates-wrap"' + (kind === 'dates' ? '' : ' hidden') + '>' +
+        '<span class="cc-label">Specific dates <span class="cc-req">*</span></span>' +
+        '<div style="display:flex;gap:8px"><input class="cc-input" type="date" id="cc-sf-datepick" min="' + today + '">' +
+        '<button type="button" class="cc-btn cc-btn-secondary" id="cc-sf-dateadd">Add</button></div>' +
+        '<div class="cc-menu-datelist" id="cc-sf-datelist"></div>' +
+        '<p class="cc-caption">Each date becomes its own bookable slot.</p></div>' +
+      '<div class="cc-field"' + (kind === 'dates' ? ' hidden' : '') + ' id="cc-sf-start-wrap">' +
+        '<label class="cc-label" for="cc-sf-start">Start date <span class="cc-req">*</span></label>' +
+        '<input class="cc-input" type="date" id="cc-sf-start" min="' + today + '" value="' + CC.esc((s && s.start_date) || today) + '"></div>' +
+      '<div class="cc-field" id="cc-sf-end-wrap"' + (kind === 'weekly' ? '' : kind === 'dates' ? ' hidden' : '') + '>' +
+        '<label class="cc-label" for="cc-sf-end">End date' + (kind === 'range' ? ' <span class="cc-req">*</span>' : ' (optional)') + '</label>' +
+        '<input class="cc-input" type="date" id="cc-sf-end" min="' + today + '" value="' + CC.esc((s && s.end_date) || '') + '"></div>' +
+      '<div class="cc-field"><label class="cc-label" for="cc-sf-tstart">Pickup window start <span class="cc-req">*</span></label>' +
+        '<input class="cc-input" type="time" id="cc-sf-tstart" value="' + CC.esc((s && s.start_time) || '10:00') + '"></div>' +
+      '<div class="cc-field"><label class="cc-label" for="cc-sf-tend">Pickup window end <span class="cc-req">*</span></label>' +
+        '<input class="cc-input" type="time" id="cc-sf-tend" value="' + CC.esc((s && s.end_time) || '14:00') + '"></div>' +
+      '<div class="cc-field"><label class="cc-label" for="cc-sf-cutoff">Order cutoff (hours before)</label>' +
+        '<input class="cc-input" type="number" id="cc-sf-cutoff" min="0" step="1" value="' + ((s && s.preorder_cutoff_hours) || 0) + '">' +
+        '<p class="cc-caption">Customers see “order within Xh Ym”.</p></div>' +
+      '<div class="cc-field"><label class="cc-label" for="cc-sf-qty">Quantity per slot</label>' +
+        '<input class="cc-input" type="number" id="cc-sf-qty" min="0" step="1" placeholder="Unlimited" value="' +
+        (s && s.quantity !== null && s.quantity !== undefined ? s.quantity : '') + '">' +
+        '<p class="cc-caption">Blank = unlimited. 0 = sold out.</p></div>' +
+      '<div class="cc-field full"><span class="cc-label">Inventory mode <span class="cc-req">*</span></span>' +
+        '<div class="cc-menu-daycheck" role="radiogroup" aria-label="Inventory mode">' +
+        '<label class="cc-radio"><input type="radio" name="cc-sf-mode" value="manual"' + ((!s || s.inventory_mode !== 'auto') ? ' checked' : '') + '> <span>Manual — I set quantities</span></label>' +
+        '<label class="cc-radio"><input type="radio" name="cc-sf-mode" value="auto"' + ((s && s.inventory_mode === 'auto') ? ' checked' : '') + '> <span>Auto — reserves on confirm</span></label></div>' +
+        '<p class="cc-caption" id="cc-sf-mode-note"></p></div>' +
+      '<div class="cc-field full"><span class="cc-label">Fulfillment for this schedule</span>' +
+        '<div class="cc-menu-daycheck">' +
+        ['pickup', 'delivery', 'shipping'].map(function (k) {
+          return '<label class="cc-check"><input type="checkbox" data-ff="' + k + '"' +
+            (ff[k] ? ' checked' : '') + '> <span>' + k.charAt(0).toUpperCase() + k.slice(1) + '</span></label>';
+        }).join('') + '</div>' +
+        '<div class="cc-menu-legal" id="cc-sf-shipnote"' + (ff.shipping ? '' : ' hidden') + '>' +
+        CC.icon('shield') + '<span>' + CC.esc(M.SHIPPING_LEGAL_TEXT) + '</span></div></div>' +
+      (isEdit ? '<div class="cc-field"><label class="cc-label" for="cc-sf-from">Apply changes from</label>' +
+        '<input class="cc-input" type="date" id="cc-sf-from" min="' + today + '" value="' + today + '">' +
+        '<p class="cc-caption">“This and future”: dates before this keep the old setup.</p></div>' : '') +
+      '<div class="cc-field"><label class="cc-label" for="cc-sf-status">Status</label>' +
+        '<select class="cc-select" id="cc-sf-status">' +
+        '<option value="active"' + ((!s || s.status === 'active') ? ' selected' : '') + '>Active</option>' +
+        '<option value="paused"' + ((s && s.status === 'paused') ? ' selected' : '') + '>Paused</option></select></div>' +
+      '</div>' +
+      '<p class="cc-caption">All times are in your shop timezone (' + CC.esc(tz) + ').</p>';
+
+    var w = M.openModal(isEdit ? 'Edit schedule' : 'New schedule', body,
+      '<button type="button" class="cc-btn cc-btn-secondary" data-modal-close>Cancel</button>' +
+      '<button type="button" class="cc-btn cc-btn-primary" id="cc-sf-save">' +
+      (isEdit ? 'Save changes' : 'Create schedule') + '</button>');
+    hydrateIcons(w);
+
+    function val(id) { return w.querySelector(id).value; }
+    function syncKind() {
+      var k = w.querySelector('input[name=cc-sf-kind]:checked').value;
+      w.querySelector('#cc-sf-days-wrap').hidden = k !== 'weekly';
+      w.querySelector('#cc-sf-dates-wrap').hidden = k !== 'dates';
+      w.querySelector('#cc-sf-start-wrap').hidden = k === 'dates';
+      var endWrap = w.querySelector('#cc-sf-end-wrap');
+      endWrap.hidden = k === 'dates';
+      endWrap.querySelector('.cc-label').innerHTML = 'End date' + (k === 'range' ? ' <span class="cc-req">*</span>' : ' (optional)');
+    }
+    w.querySelectorAll('input[name=cc-sf-kind]').forEach(function (r) {
+      r.addEventListener('change', syncKind);
+    });
+    w.querySelector('#cc-sf-product').addEventListener('change', function (e) {
+      w.querySelector('#cc-sf-items-wrap').hidden = e.target.value !== '__full__';
+    });
+    function syncModeNote() {
+      var m = w.querySelector('input[name=cc-sf-mode]:checked').value;
+      w.querySelector('#cc-sf-mode-note').textContent =
+        m === 'auto' ? INV.AUTO_NOTE : INV.MANUAL_NOTE;
+    }
+    w.querySelectorAll('input[name=cc-sf-mode]').forEach(function (r) {
+      r.addEventListener('change', syncModeNote);
+    });
+    syncModeNote();
+    w.querySelector('[data-ff="shipping"]').addEventListener('change', function (e) {
+      w.querySelector('#cc-sf-shipnote').hidden = !e.target.checked;
+    });
+    function renderDateList() {
+      var dl = w.querySelector('#cc-sf-datelist');
+      dl.innerHTML = formDates.slice().sort().map(function (dt, i) {
+        return '<span class="cc-badge cc-badge-info">' + CC.esc(dt) +
+          '<button type="button" data-rmdate="' + i + '" aria-label="Remove ' + CC.esc(dt) + '">&times;</button></span>';
+      }).join('') || '<span class="cc-caption">No dates added yet.</span>';
+      dl.querySelectorAll('[data-rmdate]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          formDates.splice(+b.getAttribute('data-rmdate'), 1); renderDateList();
+        });
+      });
+    }
+    w.querySelector('#cc-sf-dateadd').addEventListener('click', function () {
+      var dt = w.querySelector('#cc-sf-datepick').value;
+      if (!dt) { M.toast('Pick a date first.', 'error'); return; }
+      if (dt < today) { M.toast('Dates must be today or later.', 'error'); return; }
+      if (formDates.indexOf(dt) === -1) { formDates.push(dt); renderDateList(); }
+      w.querySelector('#cc-sf-datepick').value = '';
+    });
+    renderDateList();
+
+    w.querySelector('#cc-sf-save').addEventListener('click', function () {
+      var btn = w.querySelector('#cc-sf-save');
+      btn.disabled = true;
+      try {
+        var prodVal = val('#cc-sf-product');
+        var isFull = prodVal === '__full__';
+        var items = isFull
+          ? Array.prototype.filter.call(w.querySelectorAll('[data-item]'), function (c) { return c.checked; })
+            .map(function (c) { return c.getAttribute('data-item'); })
+          : [];
+        if (isFull && !items.length) throw new Error('Pick at least one listing for the daily menu.');
+        var kindVal = w.querySelector('input[name=cc-sf-kind]:checked').value;
+        var daysVal = Array.prototype.filter.call(w.querySelectorAll('[data-day]'), function (c) { return c.checked; })
+          .map(function (c) { return +c.getAttribute('data-day'); });
+        var qtyRaw = val('#cc-sf-qty').trim();
+        var ffVal = {};
+        w.querySelectorAll('[data-ff]').forEach(function (c) {
+          ffVal[c.getAttribute('data-ff')] = c.checked;
+        });
+        var input = {
+          shop_id: state.shop.id, shop_tz: tz,
+          product_id: isFull ? null : prodVal, items: items,
+          kind: kindVal, days: daysVal, dates: formDates.slice(),
+          start_date: val('#cc-sf-start'), end_date: val('#cc-sf-end') || null,
+          start_time: val('#cc-sf-tstart'), end_time: val('#cc-sf-tend'),
+          preorder_cutoff_hours: val('#cc-sf-cutoff'),
+          quantity: qtyRaw === '' ? null : qtyRaw,
+          inventory_mode: w.querySelector('input[name=cc-sf-mode]:checked').value,
+          fulfillment: ffVal, status: val('#cc-sf-status')
+        };
+        var job;
+        if (!isEdit) {
+          job = M.createSchedule(input).then(function () {
+            M.toast('Schedule created.', 'success');
+          });
+        } else if (s.kind === 'dates') {
+          job = M.updateDatesKind(s.id, {
+            start_time: input.start_time, end_time: input.end_time,
+            preorder_cutoff_hours: +input.preorder_cutoff_hours || 0,
+            quantity: input.quantity === null ? null : Math.floor(+input.quantity),
+            inventory_mode: input.inventory_mode,
+            fulfillment: input.fulfillment, status: input.status,
+            product_id: input.product_id
+          }, tz).then(function (res) {
+            if (res.cancelled) return;
+            // sync items for full-menu edits
+            return syncItems(s.id, items).then(function () {
+              M.toast('Updated ' + res.updated + ' date(s).', 'success');
+            });
+          });
+        } else {
+          var fromDate = val('#cc-sf-from') || today;
+          job = M.rematerializeFrom(s.id, {
+            start_time: input.start_time, end_time: input.end_time,
+            preorder_cutoff_hours: +input.preorder_cutoff_hours || 0,
+            quantity: input.quantity === null ? null : Math.floor(+input.quantity),
+            inventory_mode: input.inventory_mode,
+            fulfillment: input.fulfillment, status: input.status,
+            product_id: input.product_id,
+            days: input.days, start_date: input.start_date, end_date: input.end_date
+          }, fromDate, tz).then(function (res) {
+            if (res.cancelled) return;
+            return syncItems(s.id, items).then(function () {
+              M.toast('Schedule updated (' + res.rebuilt + ' rebuilt, ' +
+                res.preserved + ' kept for confirmed orders).', 'success');
+            });
+          });
+        }
+        job.then(function () { M.closeModal(); refresh(); })
+          .catch(function (err) { btn.disabled = false; M.toast(err.message || 'Could not save.', 'error'); });
+      } catch (err) { btn.disabled = false; M.toast(err.message, 'error'); }
+    });
+  }
+
+  function syncItems(scheduleId, itemIds) {
+    var sb = M.needSb();
+    return sb.from('cc_schedule_items').delete().eq('schedule_id', scheduleId)
+      .then(function (r) {
+        if (r.error) throw r.error;
+        if (!itemIds.length) return true;
+        return sb.from('cc_schedule_items').insert(
+          itemIds.map(function (pid) { return { schedule_id: scheduleId, product_id: pid }; })
+        ).then(function (r2) { if (r2.error) throw r2.error; return true; });
+      });
+  }
+
+  document.getElementById('menu-new-schedule').addEventListener('click', function () {
+    if (!state.products.length) {
+      M.toast('Create a listing first — schedules need at least one listing.', 'error');
+      return;
+    }
+    openScheduleModal(null);
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Occurrence edit (one date) + quantity adjust                        */
+  /* ------------------------------------------------------------------ */
+  function editOccurrenceModal(o) {
+    var tz = shopTz();
+    var body =
+      '<p class="cc-caption">' + CC.esc(M.fmtDateLong(o.occ_date, tz)) +
+      (o._committed ? ' · <strong>' + o._committed + ' confirmed order(s)</strong> — they keep their slots' : '') + '</p>' +
+      '<div class="cc-menu-formgrid">' +
+      '<div class="cc-field"><label class="cc-label" for="cc-oe-tstart">Window start</label>' +
+      '<input class="cc-input" type="time" id="cc-oe-tstart" value="' + CC.esc(timePart(o.window_start, tz)) + '"></div>' +
+      '<div class="cc-field"><label class="cc-label" for="cc-oe-tend">Window end</label>' +
+      '<input class="cc-input" type="time" id="cc-oe-tend" value="' + CC.esc(timePart(o.window_end, tz)) + '"></div>' +
+      '</div>' +
+      '<p class="cc-caption">Edits this date only. Future dates keep the schedule\u2019s times.</p>';
+    var w = M.openModal('Edit ' + M.fmtDateLong(o.occ_date, tz), body,
+      '<button type="button" class="cc-btn cc-btn-secondary" data-modal-close>Cancel</button>' +
+      '<button type="button" class="cc-btn cc-btn-primary" id="cc-oe-save">Save this date</button>');
+    w.querySelector('#cc-oe-save').addEventListener('click', function () {
+      var btn = w.querySelector('#cc-oe-save');
+      btn.disabled = true;
+      var ts = w.querySelector('#cc-oe-tstart').value, te = w.querySelector('#cc-oe-tend').value;
+      if (!ts || !te || ts >= te) { btn.disabled = false; M.toast('End time must be after start time.', 'error'); return; }
+      var fields = {
+        window_start: M.zonedTimeToUtcIso(tz, o.occ_date, ts),
+        window_end: M.zonedTimeToUtcIso(tz, o.occ_date, te)
+      };
+      M.overrideOccurrence(o.id, (o._schedule || {}).id, o.occ_date, fields)
+        .then(function (done) {
+          if (!done) return;
+          M.closeModal(); M.toast('Date updated.', 'success'); refresh();
+        })
+        .catch(function (err) { btn.disabled = false; M.toast(err.message, 'error'); });
+    });
+  }
+
+  function timePart(iso, tz) {
+    try {
+      var p = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false })
+        .format(new Date(iso));
+      return p === '24:00' ? '00:00' : p;
+    } catch (e) { return ''; }
+  }
+
+  function adjustQtyModal(o) {
+    var tz = shopTz();
+    var body =
+      '<p class="cc-caption">' + CC.esc(M.fmtDateLong(o.occ_date, tz)) + ' · currently ' +
+      (o.quantity_left === null ? 'unlimited' : '<strong>' + o.quantity_left + '</strong> left') +
+      (o._held ? ' · <strong>' + o._held + '</strong> held for confirmed orders' : '') + '</p>' +
+      '<div class="cc-field"><label class="cc-label" for="cc-aq-qty">New quantity <span class="cc-req">*</span></label>' +
+      '<input class="cc-input" type="number" id="cc-aq-qty" min="0" step="1" value="' +
+      (o.quantity_left === null ? '' : o.quantity_left) + '" placeholder="Blank = unlimited"></div>' +
+      '<div class="cc-field"><label class="cc-label" for="cc-aq-reason">Reason <span class="cc-req">*</span></label>' +
+      '<input class="cc-input" type="text" id="cc-aq-reason" placeholder="e.g. baked extra trays" maxlength="140">' +
+      '<p class="cc-caption">Written to the inventory log with your name and time.</p></div>';
+    var w = M.openModal('Adjust quantity', body,
+      '<button type="button" class="cc-btn cc-btn-secondary" data-modal-close>Cancel</button>' +
+      '<button type="button" class="cc-btn cc-btn-primary" id="cc-aq-save">Save adjustment</button>');
+    w.querySelector('#cc-aq-save').addEventListener('click', function () {
+      var btn = w.querySelector('#cc-aq-save');
+      btn.disabled = true;
+      var qtyRaw = w.querySelector('#cc-aq-qty').value.trim();
+      INV.adjustOccurrence(o.id, qtyRaw === '' ? null : qtyRaw, w.querySelector('#cc-aq-reason').value)
+        .then(function (res) {
+          if (res.status === 'cancelled') return;
+          M.closeModal(); M.toast('Quantity updated and logged.', 'success'); refresh();
+        })
+        .catch(function (err) { btn.disabled = false; M.toast(err.message, 'error'); });
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Inventory tab                                                   */
+  /* ------------------------------------------------------------------ */
+  function renderInventory() {
+    var host = document.getElementById('menu-inventory');
+    host.innerHTML = '<div role="status" aria-label="Loading inventory">' +
+      '<div class="cc-skeleton" style="height:90px"></div><div class="cc-skeleton" style="height:90px"></div></div>';
+    INV.getOverview(state.shop.id).then(function (rows) {
+      var tz = shopTz();
+      var modeNotes = {};
+      state.schedules.forEach(function (s) { modeNotes[s.id] = s.inventory_mode; });
+      var html = '<div class="cc-menu-sec-head"><h2>Inventory</h2>' +
+        '<span class="cc-caption">next 21 days</span></div>';
+      var autoScheds = state.schedules.filter(function (s) { return s.inventory_mode === 'auto'; });
+      var manualScheds = state.schedules.filter(function (s) { return s.inventory_mode !== 'auto'; });
+      if (autoScheds.length) {
+        html += '<div class="cc-alert cc-alert-success" role="note">' + CC.icon('check') +
+          '<div><strong>Auto inventory:</strong> ' + CC.esc(autoScheds.map(function (s) {
+            return scheduleTitle(s);
+          }).join(', ')) + ' — ' + CC.esc(INV.AUTO_NOTE) + '</div></div>';
+      }
+      if (manualScheds.length) {
+        html += '<div class="cc-alert cc-alert-info" role="note">' + CC.icon('clipboard') +
+          '<div><strong>Manual inventory:</strong> ' + CC.esc(manualScheds.map(function (s) {
+            return scheduleTitle(s);
+          }).join(', ')) + ' — ' + CC.esc(INV.MANUAL_NOTE) + '</div></div>';
+      }
+      hydrateIcons(host);
+      if (!rows.length) {
+        html += CC.states.empty({
+          icon: 'clipboard', title: 'No upcoming slots',
+          body: 'Inventory appears here once your schedules have upcoming dates.'
+        });
+        host.innerHTML = html; hydrateIcons(host);
+        return;
+      }
+      // group by product
+      var byProd = {}, order = [];
+      rows.forEach(function (r) {
+        if (!byProd[r.product.id]) { byProd[r.product.id] = { product: r.product, rows: [] }; order.push(r.product.id); }
+        byProd[r.product.id].rows.push(r);
+      });
+      if (!state.invProductId || !byProd[state.invProductId]) state.invProductId = order[0];
+      html += '<div class="cc-field"><label class="cc-label" for="menu-inv-prod">Listing</label>' +
+        '<select class="cc-select" id="menu-inv-prod">' +
+        order.map(function (pid) {
+          var p = byProd[pid].product;
+          return '<option value="' + pid + '"' + (pid === state.invProductId ? ' selected' : '') + '>' +
+            CC.esc(p.name) + '</option>';
+        }).join('') + '</select></div>';
+      var grp = byProd[state.invProductId];
+      html += grp.rows.map(function (r) {
+        var o = r.occurrence;
+        var auto = modeNotes[r.schedule.id] === 'auto';
+        var qtyTxt = o.quantity_left === null ? 'Unlimited' : o.quantity_left + ' left';
+        return '<div class="cc-occ-row"><div class="cc-occ-top"><div>' +
+          '<strong>' + CC.esc(M.fmtDateLong(o.occ_date, tz)) + '</strong>' +
+          '<div class="cc-caption">' + CC.esc(M.fmtTime(o.window_start, tz)) + ' – ' +
+          CC.esc(M.fmtTime(o.window_end, tz)) + ' · ' + CC.esc(qtyTxt) +
+          (auto ? ' · auto-managed' : '') + '</div></div>' +
+          '<div>' + statusBadge(o.status) + '</div></div>' +
+          (auto ? '' : '<div class="cc-menu-actions">' +
+            '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-inv-adjust="' + o.id + '">Adjust quantity</button>' +
+            (o.status === 'sold_out'
+              ? '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-inv-stock="' + o.id + '">Back in stock</button>'
+              : '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-inv-soldout="' + o.id + '">Mark sold out</button>') +
+            '</div>') + '</div>';
+      }).join('');
+      html += '<div class="cc-menu-sec-head"><h2>Inventory log</h2>' +
+        '<span class="cc-caption">newest first</span></div><div id="menu-inv-log"><div class="cc-skeleton" style="height:60px"></div></div>';
+      host.innerHTML = html;
+      hydrateIcons(host);
+      host.querySelector('#menu-inv-prod').addEventListener('change', function (e) {
+        state.invProductId = e.target.value; renderInventory();
+      });
+      host.querySelectorAll('[data-inv-adjust]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var occId = b.getAttribute('data-inv-adjust');
+          findOccById(occId).then(adjustQtyModal)
+            .catch(function (err) { M.toast(err.message, 'error'); });
+        });
+      });
+      host.querySelectorAll('[data-inv-soldout]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          INV.setSoldOut(b.getAttribute('data-inv-soldout'), true)
+            .then(function () { M.toast('Marked sold out.', 'success'); renderInventory(); })
+            .catch(function (err) { M.toast(err.message, 'error'); });
+        });
+      });
+      host.querySelectorAll('[data-inv-stock]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          INV.setSoldOut(b.getAttribute('data-inv-stock'), false)
+            .then(function () { M.toast('Back in stock.', 'success'); renderInventory(); })
+            .catch(function (err) { M.toast(err.message, 'error'); });
+        });
+      });
+      INV.getLogs(state.invProductId, 15).then(function (logs) {
+        var logHost = document.getElementById('menu-inv-log');
+        if (!logHost) return;
+        if (!logs.length) {
+          logHost.innerHTML = '<p class="cc-caption">No inventory changes logged yet for this listing.</p>';
+          return;
+        }
+        logHost.innerHTML = '<ul class="cc-menu-log">' + logs.map(function (l) {
+          var chg = l.change > 0 ? '+' + l.change : String(l.change);
+          var cls = l.change > 0 ? 'chg-pos' : l.change < 0 ? 'chg-neg' : '';
+          var when = '';
+          try {
+            when = new Intl.DateTimeFormat('en-US', {
+              timeZone: tz, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+            }).format(new Date(l.created_at));
+          } catch (e) { when = String(l.created_at).slice(0, 16); }
+          return '<li><span class="' + cls + '">' + CC.esc(chg) + '</span> · ' +
+            CC.esc(l.reason) +
+            '<div class="cc-caption">' + CC.esc(when) +
+            (l._occ_date ? ' · ' + CC.esc(l._occ_date) : '') + '</div></li>';
+        }).join('') + '</ul>';
+      }).catch(function (err) {
+        var logHost = document.getElementById('menu-inv-log');
+        if (logHost) logHost.innerHTML = '<p class="cc-caption">Could not load the log.</p>';
+      });
+    }).catch(function (err) {
+      host.innerHTML = failBox(err);
+      var b = host.querySelector('.cc-empty-actions button');
+      if (b) b.addEventListener('click', renderInventory);
+    });
+  }
+
+  function findOccById(occId) {
+    // day-view occurrences carry _committed/_held/_schedule; reuse it.
+    return M.getDayView(state.shop.id, state.selectedDate).then(function (view) {
+      var hit = view.occurrences.filter(function (o) { return o.id === occId; })[0];
+      if (hit) return hit;
+      // fall back: fetch the occurrence directly (no order counts)
+      var sb = M.needSb();
+      return sb.from('cc_occurrences').select('*').eq('id', occId).single()
+        .then(function (r) {
+          if (r.error) throw r.error;
+          r.data._committed = 0; r.data._held = 0;
+          return r.data;
+        });
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Fulfillment tab                                                     */
+  /* ------------------------------------------------------------------ */
+  function renderFulfillment() {
+    var host = document.getElementById('menu-fulfill');
+    var shop = state.shop;
+    function shipNote(on) {
+      return '<div class="cc-menu-legal"' + (on ? '' : ' hidden') + ' data-shipnote>' +
+        CC.icon('shield') + '<span>' + CC.esc(M.SHIPPING_LEGAL_TEXT) + '</span></div>';
+    }
+    var html = '<div class="cc-menu-sec-head"><h2>Fulfillment</h2>' +
+      '<span class="cc-caption">how customers get your food</span></div>' +
+      '<div class="cc-card cc-menu-card"><h3 class="cc-h3" style="margin-top:0">Shop defaults</h3>' +
+      '<p class="cc-caption">Schedules and listings inherit these unless they set their own.</p>' +
+      ['pickup', 'delivery', 'shipping'].map(function (k) {
+        var on = !!shop['fulfillment_' + k];
+        return '<label class="cc-switch"><input type="checkbox" data-shop-ff="' + k + '"' +
+          (on ? ' checked' : '') + '> <span>' + k.charAt(0).toUpperCase() + k.slice(1) + '</span></label>' +
+          (k === 'shipping' ? shipNote(on) : '');
+      }).join('') + '</div>' +
+      '<div class="cc-menu-sec-head"><h2>Per listing</h2></div>';
+    if (!state.products.length) {
+      html += CC.states.empty({ icon: 'shopping-bag', title: 'No listings yet', body: 'Fulfillment options appear per listing once you have one.' });
+    } else {
+      html += state.products.map(function (p) {
+        var ff = p.fulfillment || {};
+        return '<div class="cc-card cc-menu-card" data-pff="' + p.id + '">' +
+          '<h3 class="cc-h3" style="margin-top:0">' + CC.esc(p.name) + '</h3>' +
+          '<div class="cc-menu-daycheck">' +
+          ['pickup', 'delivery', 'shipping'].map(function (k) {
+            return '<label class="cc-check"><input type="checkbox" data-pff-k="' + k + '"' +
+              (ff[k] ? ' checked' : '') + '> <span>' + k.charAt(0).toUpperCase() + k.slice(1) + '</span></label>';
+          }).join('') + '</div>' +
+          shipNote(!!ff.shipping) + '</div>';
+      }).join('');
+    }
+    html += '<p class="cc-caption">Each schedule can also set its own fulfillment in the schedule editor — ' +
+      'schedule settings win over listing settings, which win over shop defaults.</p>';
+    host.innerHTML = html;
+    hydrateIcons(host);
+    host.querySelectorAll('[data-shop-ff]').forEach(function (sw) {
+      sw.addEventListener('change', function () {
+        var flags = {};
+        host.querySelectorAll('[data-shop-ff]').forEach(function (x) {
+          flags[x.getAttribute('data-shop-ff')] = x.checked;
+        });
+        var card = sw.closest('.cc-card');
+        var note = card.querySelector('[data-shipnote]');
+        if (note) note.hidden = !flags.shipping;
+        M.setShopFulfillment(shop.id, flags)
+          .then(function () {
+            state.shop['fulfillment_pickup'] = flags.pickup;
+            state.shop['fulfillment_delivery'] = flags.delivery;
+            state.shop['fulfillment_shipping'] = flags.shipping;
+            M.toast('Shop fulfillment saved.', 'success');
+          })
+          .catch(function (err) { M.toast(err.message, 'error'); renderFulfillment(); });
+      });
+    });
+    host.querySelectorAll('[data-pff]').forEach(function (card) {
+      var pid = card.getAttribute('data-pff');
+      card.querySelectorAll('[data-pff-k]').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+          var flags = {};
+          card.querySelectorAll('[data-pff-k]').forEach(function (x) {
+            flags[x.getAttribute('data-pff-k')] = x.checked;
+          });
+          var note = card.querySelector('[data-shipnote]');
+          if (note) note.hidden = !flags.shipping;
+          M.setProductFulfillment(pid, flags)
+            .then(function () { M.toast('Listing fulfillment saved.', 'success'); })
+            .catch(function (err) { M.toast(err.message, 'error'); renderFulfillment(); });
+        });
+      });
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Boot                                                                */
+  /* ------------------------------------------------------------------ */
+  window.CC_PAGE_INIT = function () {
+    hydrateIcons(document);
+    renderGate();
+  };
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

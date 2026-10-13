@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="Sell on CraveCorner — share posts for your shop or open your own shop in six short steps.">
+<title>Sell on CraveCorner — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+<!-- Stage 5: live composer components (additive — no Stage 1 styles changed) -->
+<link rel="stylesheet" href="assets/css/cc-stage5.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div class="pg-head pg-create-hero cc-hero cc-deco" style="border-radius: var(--cc-radius-xl); padding: var(--cc-space-8) var(--cc-space-6); margin-top: var(--cc-space-4);">
+      <span class="cc-blob cc-blob-pink" style="width: 220px; height: 220px; top: -60px; right: -40px;"></span>
+      <span class="cc-blob cc-blob-mango" style="width: 160px; height: 160px; bottom: -50px; left: 10%;"></span>
+      <p class="cc-eyebrow">Create</p>
+      <h1>Sell on CraveCorner</h1>
+      <p class="cc-lead">Turn your kitchen into a neighborhood favorite. Post updates for your followers, or open your shop in six short steps.</p>
+      <p data-cc-demo-note style="margin-top: var(--cc-space-4);"><span class="pg-sample-note"><span data-icon="clipboard" aria-hidden="true"></span>Preview — connect to the live marketplace to post for real.</span></p>
+    </div>
+
+    <div class="cc-section">
+      <h2>How seller onboarding works</h2>
+      <p class="cc-muted" style="max-width: 60ch;">Six short steps. No fees to list in the preview plan, and CraveCorner never takes a cut through in-app checkout — payment is always arranged directly between you and your customers.</p>
+
+      <ol class="pg-steps">
+        <li>
+          <div><strong>Shop identity</strong><p>Pick your shop name, write a short blurb, and upload a cover photo that shows off your food.</p></div>
+        </li>
+        <li>
+          <div><strong>Location</strong><p>Tell customers your city and service area. Street addresses are never shown publicly — city and state only.</p></div>
+        </li>
+        <li>
+          <div><strong>Fulfillment &amp; hours</strong><p>Choose how customers get your food — pickup, delivery, shipping — and set the days and hours you take requests.</p></div>
+        </li>
+        <li>
+          <div><strong>Business info</strong><p>Add your contact details and any permits or cottage-food registrations your state requires. You are responsible for following your local food laws.</p></div>
+        </li>
+        <li>
+          <div><strong>First product</strong><p>List your first dish with photos, price, servings, ingredients, and allergens. Honest listings only — no stock photos of food you did not make.</p></div>
+        </li>
+        <li>
+          <div><strong>Preview &amp; publish</strong><p>Review exactly how your shop looks to customers, then publish. You can edit anything, anytime.</p></div>
+        </li>
+      </ol>
+
+      <div class="pg-cta-row">
+        <a class="cc-btn cc-btn-primary" href="index.html">Explore the marketplace</a>
+        <a class="cc-btn cc-btn-outline" href="explore.html">See sample listings</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<!-- Stage 5: live backend client + shared live helpers (no-ops when not live) -->
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/cc-community.js"></script>
+<script src="assets/js/app.js"></script>
+<!-- STAGE 4: notification bell badge + dropdown (hooks the header; app.js untouched) -->
+<script src="assets/js/cc-notify.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var main = document.getElementById('cc-main');
+  if (!window.CC || !window.CC_DEMO) {
+    main.innerHTML = '<div class="cc-container cc-section"><div class="cc-alert cc-alert-danger" role="alert">CraveCorner could not load. Check your connection and reload the page.</div></div>';
+    return;
+  }
+  var CC = window.CC;
+
+  /* Shared chrome (header/footer/demo banner) is rendered by
+     assets/js/app.js on DOMContentLoaded — set the active nav
+     before that fires. */
+  window.CC_ACTIVE_NAV = 'create';
+
+  var slots = document.querySelectorAll('[data-icon]');
+  for (var si = 0; si < slots.length; si++) {
+    (function (el) {
+      var tmp = document.createElement('span');
+      tmp.innerHTML = CC.icon(el.getAttribute('data-icon'));
+      if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+    })(slots[si]);
+  }
+})();
+</script>
+<script>
+/* ==========================================================================
+   Stage 5 — LIVE post composer (appended 2026-10-11; Stage 1 code above is
+   untouched). When the backend is live (CC.live):
+     - Signed-out visitors get a sign-in prompt (actions are never faked).
+     - Signed-in sellers with a PUBLISHED shop get the post composer:
+       photos (cc-post-images bucket), caption, optional product link,
+       kind (update/special/menu/availability). Inserts into cc_posts.
+     - Signed-in visitors without a shop see the Stage 2 "become a seller"
+       hero unchanged, plus an honest note.
+   When the backend is NOT live, this block returns early and the Stage 1
+   "Coming in Stage 2" preview above runs exactly as before.
+   ========================================================================== */
+(function () {
+  'use strict';
+  if (!window.CC || !window.CC5) return;
+  var CC = window.CC;
+  var CC5 = window.CC5;
+
+  CC.ready.then(function (st) {
+    if (!st.live) return; /* demo path stays exactly as Stage 1 */
+    initComposer();
+  });
+
+  function initComposer() {
+    var container = document.querySelector('#cc-main .cc-container');
+    if (!container) return;
+
+    /* The preview hero is for the offline fallback only — live visitors get
+       the real composer / sign-in / become-a-seller states below. */
+    var hero = container.querySelector('.pg-create-hero');
+    if (hero) hero.hidden = true;
+
+    if (!CC.user) {
+      var wall = document.createElement('div');
+      wall.innerHTML = CC5.loginWall('post updates as your shop');
+      container.insertBefore(wall.firstChild, container.firstChild);
+      CC5.bindActions(container);
+      return;
+    }
+
+    CC5.myShop().then(function (shop) {
+      if (!shop) {
+        var note = document.createElement('div');
+        note.innerHTML =
+          '<div class="cc-alert cc-alert-info" role="note" style="margin-top: var(--cc-space-4);">' +
+            CC.icon('store') +
+            '<span><strong>You don\u2019t have a shop yet.</strong> ' +
+            'Follow the steps below to become a seller — once your shop is published, you can post updates here.</span>' +
+            '<span style="display:block;margin-top:var(--cc-space-3);"><a class="cc-btn cc-btn-primary cc-btn-sm" href="onboarding.html">Start selling</a></span>' +
+          '</div>';
+        container.insertBefore(note.firstChild, container.firstChild);
+        return;
+      }
+      if (shop.status !== 'published') {
+        var statusCopy = {
+          draft: 'Your shop is still a draft. Submit it for review to start posting.',
+          pending: 'Your shop is under review. You\u2019ll be able to post once it\u2019s published.',
+          rejected: 'Your shop wasn\u2019t approved. Check your email for details, fix the issues, and resubmit.',
+          suspended: 'Your shop is suspended. Contact support if you think this is a mistake.'
+        }[shop.status] || 'Your shop isn\u2019t published yet, so posting is disabled for now.';
+        var info = document.createElement('div');
+        info.innerHTML =
+          '<div class="cc-alert cc-alert-warn" role="note" style="margin-top: var(--cc-space-4);">' +
+            CC.icon('clock') + '<span><strong>' + CC.esc(shop.name) + ':</strong> ' + statusCopy + '</span>' +
+          '</div>';
+        container.insertBefore(info.firstChild, container.firstChild);
+        return;
+      }
+      renderComposer(container, shop);
+    }).catch(function (err) {
+      var errBox = document.createElement('div');
+      errBox.innerHTML = '<div class="cc-alert cc-alert-danger" role="alert" style="margin-top: var(--cc-space-4);">' +
+        CC.esc((err && err.message) || 'Could not load your shop.') + '</div>';
+      container.insertBefore(errBox.firstChild, container.firstChild);
+    });
+  }
+
+  var KIND_LABEL = { update: 'Update', special: 'Special', menu: 'Menu', availability: 'Availability' };
+
+  function renderComposer(container, shop) {
+    /* The "Coming in Stage 2" hero is stale once accounts + shops are live. */
+    var hero = container.querySelector('.pg-create-hero');
+    if (hero) hero.hidden = true;
+
+    var card = document.createElement('div');
+    card.className = 'cc-card cc5-composer';
+    card.style.cssText = 'padding: var(--cc-space-6); margin-top: var(--cc-space-4);';
+    card.innerHTML =
+      '<div class="pg-head" style="padding: 0;">' +
+        '<p class="cc-eyebrow">Posting as ' + CC.esc(shop.name) + '</p>' +
+        '<h1>New post</h1>' +
+        '<p class="cc-lead">Share an update, a limited-time special, a menu drop, or your availability.</p>' +
+      '</div>' +
+      '<div data-cc5c-err></div>' +
+      '<form data-cc5c-form novalidate>' +
+        '<div class="cc-field"><label class="cc-label" for="cc5c-kind">Kind</label>' +
+          '<select class="cc-select" id="cc5c-kind" name="kind">' +
+            Object.keys(KIND_LABEL).map(function (k) {
+              return '<option value="' + k + '">' + KIND_LABEL[k] + '</option>';
+            }).join('') +
+          '</select></div>' +
+        '<div class="cc-field"><label class="cc-label" for="cc5c-body">Caption <span class="cc-req" aria-hidden="true">*</span></label>' +
+          '<textarea class="cc-textarea" id="cc5c-body" name="body" rows="4" maxlength="500" required ' +
+            'placeholder="What\u2019s fresh in your kitchen?"></textarea>' +
+          '<p class="cc-hint"><span data-cc5c-count>0</span> / 500</p></div>' +
+        '<div class="cc-field"><label class="cc-label" for="cc5c-photos">Photos <span class="cc-muted">(optional, up to 4)</span></label>' +
+          '<input class="cc-input" id="cc5c-photos" name="photos" type="file" accept="image/*" multiple>' +
+          '<div class="cc5-thumb-row" data-cc5c-previews style="margin-top: var(--cc-space-2);"></div></div>' +
+        '<div class="cc-field"><label class="cc-label" for="cc5c-product">Link a product <span class="cc-muted">(optional)</span></label>' +
+          '<select class="cc-select" id="cc5c-product" name="product_id"><option value="">No product link</option></select>' +
+          '<p class="cc-hint">Specials and menu drops can point straight at the listing.</p></div>' +
+        '<div class="cc-modal-actions" style="justify-content: flex-start;">' +
+          '<button type="submit" class="cc-btn cc-btn-primary cc-btn-lg">Publish post</button>' +
+        '</div>' +
+      '</form>';
+    container.insertBefore(card, container.firstChild);
+
+    var form = card.querySelector('[data-cc5c-form]');
+    var errBox = card.querySelector('[data-cc5c-err]');
+    var bodyInput = form.elements.body;
+    var countEl = card.querySelector('[data-cc5c-count]');
+    bodyInput.addEventListener('input', function () { countEl.textContent = bodyInput.value.length; });
+
+    /* Photo previews (client-side only, before upload). */
+    var previews = card.querySelector('[data-cc5c-previews]');
+    form.elements.photos.addEventListener('change', function () {
+      previews.innerHTML = '';
+      var files = form.elements.photos.files;
+      for (var i = 0; i < Math.min(files.length, 4); i++) {
+        (function (f) {
+          if (!f.type || f.type.indexOf('image/') !== 0) return;
+          var img = document.createElement('img');
+          img.className = 'cc5-thumb-prev';
+          img.alt = 'Photo preview';
+          previews.appendChild(img);
+          var rd = new FileReader();
+          rd.onload = function () { img.src = rd.result; };
+          rd.readAsDataURL(f);
+        })(files[i]);
+      }
+    });
+
+    /* The seller's own products for the optional product link. */
+    CC.sb.from('cc_products').select('id,name,price_cents')
+      .eq('shop_id', shop.id).in('status', ['active', 'paused', 'sold_out']).order('name')
+      .then(function (r) {
+        var sel = form.elements.product_id;
+        (r.data || []).forEach(function (p) {
+          var opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.name + ' · ' + CC.centsToPrice(p.price_cents);
+          sel.appendChild(opt);
+        });
+      });
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      errBox.innerHTML = '';
+      var body = bodyInput.value.trim();
+      if (!body) {
+        errBox.innerHTML = '<div class="cc-alert cc-alert-danger" role="alert">Write a caption for your post.</div>';
+        bodyInput.focus();
+        return;
+      }
+      var btn = form.querySelector('[type="submit"]');
+      btn.disabled = true;
+      btn.textContent = 'Publishing…';
+      CC5.uploadPhotos('cc-post-images', form.elements.photos.files, CC.user.id, 4)
+        .then(function (paths) {
+          return CC.sb.from('cc_posts').insert({
+            shop_id: shop.id,
+            author_id: CC.user.id,
+            body: body,
+            photos: paths,
+            product_id: form.elements.product_id.value || null,
+            kind: form.elements.kind.value
+          }).select('id').single();
+        })
+        .then(function (r) {
+          if (r.error) throw r.error;
+          card.innerHTML = CC.states.success({
+            title: 'Post published',
+            body: 'Your followers will see it in their Community feed.'
+          }) + '<div class="pg-cta-row">' +
+            '<a class="cc-btn cc-btn-primary" href="community.html">View in community</a>' +
+            '<button type="button" class="cc-btn cc-btn-outline" id="cc5c-again">Post another</button>' +
+          '</div>';
+          document.getElementById('cc5c-again').addEventListener('click', function () {
+            card.parentNode.removeChild(card);
+            if (hero) hero.hidden = true;
+            renderComposer(container, shop);
+          });
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Publish post';
+          errBox.innerHTML = '<div class="cc-alert cc-alert-danger" role="alert">' +
+            CC.esc((err && err.message) || 'Could not publish the post.') + '</div>';
+        });
+    });
+  }
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

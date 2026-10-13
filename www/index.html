@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- CraveCorner <head> — root page (assets/... paths). Copied from assets/partials/head.html. -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="CraveCorner — Find your craving. Support someone local. A nationwide marketplace for homemade food.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="CraveCorner">
+<meta property="og:title" content="CraveCorner — Find your craving. Support someone local.">
+<meta property="og:description" content="A nationwide marketplace for homemade food and drinks. Sellers and customers welcome.">
+<meta property="og:image" content="https://cravecorner-assets.surge.sh/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cravecorner-assets.surge.sh/og-image.jpg">
+<title>CraveCorner — Find your craving. Support someone local.</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + homepage styles -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/index.css">
+<!-- Stage 5: live preview components (additive — no earlier styles changed) -->
+<link rel="stylesheet" href="assets/css/cc-stage5.css">
+
+<!-- Icons (loads window.CC.icon) -->
+<script src="assets/js/icons.js" defer></script>
+
+<!-- Sample data for design review (no backend yet) -->
+<script src="js/data/demo.js" defer></script>
+
+<!-- Shared app shell: header, footer, cards, modals -->
+<!-- STAGE 4: Supabase client (frontend contract: before app.js) -->
+<script defer src="assets/js/supabase.min.js"></script>
+<script defer src="assets/js/cc.js"></script>
+<!-- Stage 5: shared live helpers (no-ops when not live) -->
+<script defer src="assets/js/cc-community.js"></script>
+<script defer src="assets/js/cc-cravings.js"></script>
+<script src="assets/js/app.js" defer></script>
+<!-- STAGE 4: notification bell badge + dropdown (hooks the header; app.js untouched) -->
+<script defer src="assets/js/cc-notify.js"></script>
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<a class="cc-skip" href="#main">Skip to content</a>
+
+<!-- (1) Shared header: mobile top bar + desktop top nav + mobile bottom nav -->
+<div id="cc-header"></div>
+
+<main id="main">
+  <!-- (2) HERO -->
+  <section class="cc-home-hero cc-deco" aria-label="Welcome to CraveCorner">
+    <div class="cc-blob cc-blob-pink cc-blob-a" aria-hidden="true"></div>
+    <div class="cc-blob cc-blob-mango cc-blob-b" aria-hidden="true"></div>
+    <div class="cc-blob cc-blob-mint cc-blob-c" aria-hidden="true"></div>
+    <div class="cc-container">
+      <div class="cc-hero-grid">
+        <div class="cc-hero-copy">
+          <p class="cc-eyebrow">Homemade &middot; Local &middot; Nationwide</p>
+          <h1 class="cc-display">What are you craving?</h1>
+          <p class="cc-lead">Discover homemade favorites, local food makers, and delicious finds near you.</p>
+          <form class="cc-hero-search" data-cc-search role="search" aria-label="Search CraveCorner">
+            <div class="cc-search">
+              <input class="cc-input" type="search" name="q" placeholder="Try &ldquo;tamales&rdquo;, &ldquo;cold brew&rdquo;, &ldquo;cake pops&rdquo;&hellip;" aria-label="Search dishes, shops, and cravings">
+              <button type="submit" class="cc-btn cc-btn-primary" aria-label="Search">Search</button>
+            </div>
+          </form>
+        </div>
+        <div class="cc-collage" aria-label="A collage of homemade food photos">
+          <figure class="cc-collage-a"><img src="assets/img/hero-tacos.jpg" alt="Birria tacos with melted cheese and consomm&eacute;"></figure>
+          <figure class="cc-collage-b"><img src="assets/img/hero-cheesecake.jpg" alt="Strawberry cheesecake cups with crumble topping"></figure>
+          <figure class="cc-collage-c"><img src="assets/img/hero-cookies.jpg" alt="Stack of chocolate chip cookies"></figure>
+          <figure class="cc-collage-d"><img src="assets/img/hero-drinks.jpg" alt="Iced strawberry lemonade with lemon wheels"></figure>
+          <figure class="cc-collage-e"><img src="assets/img/hero-lunch.jpg" alt="Homemade lunch plate"></figure>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- (3) BROWSE CATEGORIES -->
+  <section class="cc-home-section" aria-labelledby="sec-categories">
+    <div class="cc-container">
+      <div class="cc-sec-head">
+        <div>
+          <h2 id="sec-categories">Browse categories</h2>
+          <p>Twelve ways to satisfy the craving.</p>
+        </div>
+        <a class="cc-sec-link" href="explore.html">View all</a>
+      </div>
+    </div>
+    <div class="cc-container">
+      <div class="cc-cat-row" id="home-categories"></div>
+    </div>
+  </section>
+
+  <!-- (4) READY TODAY -->
+  <section class="cc-home-section" aria-labelledby="sec-ready">
+    <div class="cc-container">
+      <div class="cc-sec-head">
+        <div>
+          <h2 id="sec-ready">Ready today</h2>
+          <p>Fresh from local kitchens &mdash; grab it while it lasts.</p>
+        </div>
+        <a class="cc-sec-link" href="explore.html">View all</a>
+      </div>
+      <div id="home-ready"></div>
+    </div>
+  </section>
+
+  <!-- (5) NEARBY SHOPS -->
+  <section class="cc-home-section" aria-labelledby="sec-shops">
+    <div class="cc-container">
+      <div class="cc-sec-head">
+        <div>
+          <h2 id="sec-shops">Nearby shops</h2>
+          <p>Local makers cooking near you.</p>
+        </div>
+        <a class="cc-sec-link" href="explore.html">View all</a>
+      </div>
+      <div id="home-shops"></div>
+    </div>
+  </section>
+
+  <!-- (6) SPECIALS -->
+  <section class="cc-home-section" aria-labelledby="sec-specials">
+    <div class="cc-container">
+      <div class="cc-sec-head">
+        <div>
+          <h2 id="sec-specials">Specials</h2>
+          <p>Limited-time deals from local shops.</p>
+        </div>
+      </div>
+      <div id="home-specials"></div>
+    </div>
+  </section>
+
+  <!-- (7) MADE TO ORDER -->
+  <section class="cc-home-section" aria-labelledby="sec-made">
+    <div class="cc-container">
+      <div class="cc-sec-head">
+        <div>
+          <h2 id="sec-made">Made to order</h2>
+          <p>Baked, cooked, and crafted just for you.</p>
+        </div>
+        <a class="cc-sec-link" href="explore.html">View all</a>
+      </div>
+      <div id="home-made"></div>
+    </div>
+  </section>
+
+  <!-- (8) NEW SHOPS -->
+  <section class="cc-home-section" aria-labelledby="sec-newshops">
+    <div class="cc-container">
+      <div class="cc-sec-head">
+        <div>
+          <h2 id="sec-newshops">New shops</h2>
+          <p>Fresh faces joining the neighborhood.</p>
+        </div>
+        <a class="cc-sec-link" href="explore.html">View all</a>
+      </div>
+      <div id="home-newshops"></div>
+    </div>
+  </section>
+
+  <!-- (9) COMMUNITY PREVIEW -->
+  <section class="cc-home-section" aria-labelledby="sec-community">
+    <div class="cc-container">
+      <div class="cc-sec-head">
+        <div>
+          <h2 id="sec-community">Community preview</h2>
+          <p>What local makers are sharing.</p>
+        </div>
+        <a class="cc-sec-link" href="community.html">Join the community</a>
+      </div>
+      <div id="home-posts"></div>
+    </div>
+  </section>
+
+  <!-- (10) CRAVINGS BOARD PREVIEW -->
+  <section class="cc-home-section" aria-labelledby="sec-cravings">
+    <div class="cc-container">
+      <div class="cc-sec-head">
+        <div>
+          <h2 id="sec-cravings">Cravings board</h2>
+          <p>Real cravings from real neighbors.</p>
+        </div>
+        <a class="cc-sec-link" href="cravings.html">View board</a>
+      </div>
+      <div id="home-cravings"></div>
+      <div class="cc-craving-cta">
+        <button type="button" class="cc-btn cc-btn-primary cc-btn-lg" id="home-craving-btn">Post a craving</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Shared footer -->
+<div id="cc-footer"></div>
+
+<script>
+  /* Homepage wiring: rendered after the shared shell (see assets/js/app.js).
+     Live-vs-demo rule (bugfix 2026-10-12): sections paint skeletons first,
+     then branch on CC.ready. Live -> real Supabase queries (never
+     window.CC_DEMO, so no Portland/Dallas sample shops leak in). Probe
+     failure -> the original Stage-1 demo rendering, byte-for-byte unchanged
+     (offline fallback). */
+  window.CC_ACTIVE_NAV = "home";
+
+  window.CC_PAGE_INIT = function () {
+    var D = window.CC_DEMO || {};
+    var esc = CC.esc;
+
+    function afterRender() {
+      CC.refreshSaveUI(document.getElementById("main"));
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* Shared markup: special cards — one builder reused by both paths   */
+    /* ---------------------------------------------------------------- */
+    function specialCard(o) {
+      return '<article class="cc-special-card">' +
+        '<div class="cc-special-media"><img src="' + esc(o.imgSrc) + '" alt="' + esc(o.title) + '" loading="lazy"></div>' +
+        '<div class="cc-special-body">' +
+        '<p class="cc-special-kicker">' + CC.icon("star") + "Limited-time special</p>" +
+        "<h3>" + esc(o.title) + "</h3>" +
+        (o.shopName ? '<p class="cc-special-shop">' + esc(o.shopName) + (o.place ? " · " + esc(o.place) : "") + "</p>" : "") +
+        "<p>" + esc(o.detail) + "</p>" +
+        "</div></article>";
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* DEMO path — the original Stage-1 rendering, output unchanged      */
+    /* ---------------------------------------------------------------- */
+    function shopById(id) {
+      var shops = D.SHOPS || [];
+      for (var i = 0; i < shops.length; i++) if (shops[i].id === id) return shops[i];
+      return null;
+    }
+
+    function renderDemoCategories() {
+      var host = document.getElementById("home-categories");
+      var cats = D.CATEGORIES || [];
+      if (!cats.length) {
+        host.innerHTML = CC.states.empty({ icon: "compass", title: "No categories yet",
+          body: "Categories will appear here once the catalog is live." });
+        afterRender();
+        return;
+      }
+      host.innerHTML = cats.map(function (c) {
+        return '<a class="cc-cat-tile" href="category.html?cat=' + esc(c.slug) + '">' +
+          '<span class="cc-cat-img"><img src="' + esc(CC.img(c.img)) + '" alt="' + esc(c.name) + '" loading="lazy"></span>' +
+          "<span>" + esc(c.name) + "</span></a>";
+      }).join("");
+      afterRender();
+    }
+
+    function renderDemoProducts(hostId, badge) {
+      var host = document.getElementById(hostId);
+      var items = (D.PRODUCTS || []).filter(function (p) { return p.badge === badge; });
+      if (!items.length) {
+        host.innerHTML = CC.states.empty({ icon: "clock", title: "Nothing here yet",
+          body: "Check back soon — fresh listings are on the way." });
+        afterRender();
+        return;
+      }
+      host.innerHTML = '<div class="cc-grid-products">' + items.map(CC.productCard).join("") + "</div>";
+      afterRender();
+    }
+
+    function renderDemoShops(hostId, shops) {
+      var host = document.getElementById(hostId);
+      if (!shops.length) {
+        host.innerHTML = CC.states.empty({ icon: "store", title: "No shops yet",
+          body: "Local makers will appear here as soon as they join." });
+        afterRender();
+        return;
+      }
+      host.innerHTML = '<div class="cc-grid-shops">' + shops.map(CC.shopCard).join("") + "</div>";
+      afterRender();
+    }
+
+    function renderDemoSpecials() {
+      var host = document.getElementById("home-specials");
+      var specials = D.SPECIALS || [];
+      if (!specials.length) {
+        host.innerHTML = CC.states.empty({ icon: "star", title: "No specials right now",
+          body: "Shops post limited-time deals here — check back soon." });
+        afterRender();
+        return;
+      }
+      host.innerHTML = '<div class="cc-special-grid">' + specials.map(function (sp) {
+        var shop = shopById(sp.shopId) || {};
+        var place = [shop.city, shop.state].filter(Boolean).join(", ");
+        return specialCard({
+          title: sp.title, imgSrc: CC.img(sp.img), detail: sp.detail,
+          shopName: shop.name || "", place: place
+        });
+      }).join("") + "</div>";
+      afterRender();
+    }
+
+    function renderDemoPosts() {
+      var host = document.getElementById("home-posts");
+      var posts = D.POSTS || [];
+      if (!posts.length) {
+        host.innerHTML = CC.states.empty({ icon: "message", title: "No posts yet",
+          body: "The community feed is quiet for now — makers will share updates here soon.",
+          actionLabel: "Explore the community", actionHref: "community.html" });
+        afterRender();
+        return;
+      }
+      host.innerHTML = '<div class="cc-post-grid">' + posts.map(CC.postCard).join("") + "</div>";
+      afterRender();
+    }
+
+    function renderDemoCravings() {
+      var host = document.getElementById("home-cravings");
+      var cravings = D.CRAVINGS || [];
+      if (!cravings.length) {
+        host.innerHTML = CC.states.empty({ icon: "clipboard", title: "No cravings yet",
+          body: "Neighbors post what they're hungry for here." });
+      } else {
+        host.innerHTML = '<div class="cc-craving-grid">' + cravings.map(CC.cravingCard).join("") + "</div>";
+      }
+      var btn = document.getElementById("home-craving-btn");
+      if (btn && !btn._ccBound) {
+        btn._ccBound = true;
+        btn.addEventListener("click", function () {
+          CC.honestModal("Cravings Board", "<p>You're offline — reconnect to post a craving.</p>");
+        });
+      }
+      afterRender();
+    }
+
+    function renderDemoAll() {
+      renderDemoCategories();
+      renderDemoProducts("home-ready", "ready");
+      renderDemoProducts("home-made", "made");
+      renderDemoShops("home-shops", (D.SHOPS || []).slice(0, 4));
+      renderDemoShops("home-newshops", (D.SHOPS || []).filter(function (s) { return s.isNew; }));
+      renderDemoSpecials();
+      renderDemoPosts();
+      renderDemoCravings();
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* LIVE path — real Supabase queries, never window.CC_DEMO           */
+    /* ---------------------------------------------------------------- */
+
+    /* Slug -> category tile image, hardcoded at build time (2026-10-12).
+       CC_DEMO's arrays are emptied when live, so this map cannot be read
+       at runtime — it mirrors js/data/demo.js CATEGORIES. */
+    var CAT_IMG = {
+      "desserts": "cat-desserts.jpg",
+      "coffee": "cat-coffee.jpg",
+      "homemade-meals": "cat-meals.jpg",
+      "snacks": "cat-snacks.jpg",
+      "baked-goods": "cat-baked.jpg",
+      "drinks": "cat-drinks.jpg",
+      "party-foods": "cat-party.jpg",
+      "candy-treats": "cat-candy.jpg",
+      "breakfast": "cat-breakfast.jpg",
+      "catering": "cat-catering.jpg",
+      "frozen-treats": "cat-frozen.jpg",
+      "other-food": "cat-other.jpg"
+    };
+
+    function savedLoc() {
+      var loc = CC.location ? CC.location.get() : null;
+      return (loc && (loc.city || loc.zip)) ? loc : null;
+    }
+    function locRadius(loc) {
+      var r = loc ? parseFloat(loc.radius) : NaN;
+      if (!isFinite(r) || r <= 0) r = 25;
+      return r;
+    }
+    function locLabel(loc) {
+      if (!loc) return "";
+      if (loc.label) return loc.label;
+      return [loc.city, loc.state].filter(Boolean).join(", ") || loc.zip || "";
+    }
+    function failInto(host, title) {
+      if (!host) return;
+      host.innerHTML = CC.states.error({ title: title,
+        body: "Check your connection and try again." });
+      afterRender();
+    }
+    function shortTitle(body) {
+      var words = String(body || "").split(/\s+/).filter(Boolean);
+      return words.slice(0, 8).join(" ") + (words.length > 8 ? "…" : "");
+    }
+    /* product_id -> resolved cover URL. Prefers is_cover, else lowest position. */
+    function pickCovers(rows) {
+      var map = {};
+      rows.forEach(function (im) {
+        var pid = im.product_id, cur = map[pid];
+        if (!cur) { map[pid] = im; return; }
+        if (im.is_cover && !cur.is_cover) { map[pid] = im; return; }
+        if (!im.is_cover && cur.is_cover) return;
+        var cp = Number(cur.position), ip = Number(im.position);
+        if (isFinite(ip) && (!isFinite(cp) || ip < cp)) map[pid] = im;
+      });
+      var out = {};
+      Object.keys(map).forEach(function (pid) {
+        var u = CC.imgUrl("cc-product-images", map[pid].storage_path);
+        if (u) out[pid] = u;
+      });
+      return out;
+    }
+
+    /* ---- Categories: cc_categories, tiles link to category.html ---- */
+    function fillCategories() {
+      var host = document.getElementById("home-categories");
+      if (!host) return;
+      CC.sb.from("cc_categories")
+        .select("id,slug,name,sort_order").order("sort_order")
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var cats = r.data || [];
+          if (!cats.length) {
+            host.innerHTML = CC.states.empty({ icon: "compass", title: "No categories yet",
+              body: "Categories will appear here once the catalog is live." });
+          } else {
+            host.innerHTML = cats.map(function (c) {
+              return '<a class="cc-cat-tile" href="category.html?cat=' + esc(c.slug) + '">' +
+                '<span class="cc-cat-img"><img src="' + esc(CC.img(CAT_IMG[c.slug] || "placeholder-food.jpg")) + '" alt="' + esc(c.name) + '" loading="lazy"></span>' +
+                "<span>" + esc(c.name) + "</span></a>";
+            }).join("");
+          }
+          afterRender();
+        })
+        .catch(function () { failInto(host, "Couldn't load categories"); });
+    }
+
+    /* ---- Ready today (lead_time_days = 0) / Made to order (> 0) ---- */
+    function fillProducts(hostId, readyOnly) {
+      var host = document.getElementById(hostId);
+      if (!host) return;
+      host.innerHTML = CC.states.skeletonCards(4);
+
+      function emptyHtml() {
+        var loc = savedLoc();
+        if (loc) {
+          return CC.states.empty({ icon: "clock",
+            title: "No " + (readyOnly ? "ready-today" : "made-to-order") + " items within " +
+                   locRadius(loc) + " miles of " + locLabel(loc) + " yet.",
+            body: "Try a wider radius or check back soon." });
+        }
+        return CC.states.empty({ icon: "clock", title: "Nothing here yet",
+          body: "Check back soon — fresh listings are on the way." });
+      }
+      function paint(list) {
+        host.innerHTML = list.length
+          ? '<div class="cc-grid-products">' + list.map(function (it) {
+              return CC.productCard(it.card, it.shopRow);
+            }).join("") + "</div>"
+          : emptyHtml();
+        afterRender();
+      }
+
+      var q = CC.sb.from("cc_products")
+        .select("id,shop_id,category_id,name,description,price_cents,portion,fulfillment,lead_time_days,status,created_at")
+        .eq("status", "active");
+      q = readyOnly ? q.eq("lead_time_days", 0) : q.gt("lead_time_days", 0);
+      q.order("created_at", { ascending: false }).limit(8)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var rows = r.data || [];
+          if (!rows.length) { paint([]); return null; }
+          var ids = rows.map(function (p) { return p.id; });
+          return CC.sb.from("cc_product_images")
+            .select("product_id,storage_path,is_cover,position")
+            .in("product_id", ids)
+            .then(function (ir) {
+              if (ir.error) throw ir.error;
+              var covers = pickCovers(ir.data || []);
+              var shopIds = [];
+              rows.forEach(function (p) { if (shopIds.indexOf(p.shop_id) === -1) shopIds.push(p.shop_id); });
+              return CC.shopsPublic(function (qb) { return qb.in("id", shopIds); })
+                .then(function (sr) {
+                  if (sr.error) throw sr.error;
+                  var shopMap = {};
+                  (sr.data || []).forEach(function (s) { shopMap[s.id] = s; });
+                  var items = rows.map(function (p) {
+                    var shop = shopMap[p.shop_id] || {};
+                    return { card: CC.adaptProduct(p, shop, covers[p.id]), shopRow: shop };
+                  });
+                  var loc = savedLoc();
+                  if (loc) {
+                    return CC.resolveLocCoords(loc).then(function (coords) {
+                      paint(items.filter(function (it) {
+                        return CC.filterNearby([CC.adaptShop(it.shopRow)], loc, coords).length > 0;
+                      }));
+                    });
+                  }
+                  paint(items);
+                });
+            });
+        })
+        .catch(function () { failInto(host, "Couldn't load this section"); });
+    }
+
+    /* ---- Nearby shops / New shops (latest 4) ---- */
+    function fillShops(hostId, newestOnly) {
+      var host = document.getElementById(hostId);
+      if (!host) return;
+      host.innerHTML = CC.states.skeletonCards(4);
+
+      function emptyHtml() {
+        var loc = savedLoc();
+        if (loc) {
+          return CC.states.empty({ icon: "store",
+            title: "No " + (newestOnly ? "new shops" : "shops") + " within " +
+                   locRadius(loc) + " miles of " + locLabel(loc) + " yet.",
+            body: "Try a wider radius, or check back as local makers join." });
+        }
+        return CC.states.empty({ icon: "store", title: "No shops yet",
+          body: "Local makers will appear here as soon as they join." });
+      }
+      function paint(list) {
+        host.innerHTML = list.length
+          ? '<div class="cc-grid-shops">' + list.map(CC.shopCard).join("") + "</div>"
+          : emptyHtml();
+        afterRender();
+      }
+
+      CC.shopsPublic(function (qb) {
+        return qb.order("created_at", { ascending: false }).limit(newestOnly ? 4 : 24);
+      }).then(function (r) {
+        if (r.error) throw r.error;
+        var shops = (r.data || []).map(CC.adaptShop);
+        var loc = savedLoc();
+        if (loc) {
+          return CC.resolveLocCoords(loc).then(function (coords) {
+            paint(CC.filterNearby(shops, loc, coords).slice(0, 4));
+          });
+        }
+        paint(shops.slice(0, 4));
+      }).catch(function () { failInto(host, "Couldn't load shops"); });
+    }
+
+    /* ---- Specials: latest cc_posts with kind = "special" ---- */
+    function fillSpecials() {
+      var host = document.getElementById("home-specials");
+      if (!host) return;
+      host.innerHTML = CC.states.skeletonCards(4);
+
+      function emptyHtml() {
+        return CC.states.empty({ icon: "star", title: "No specials right now",
+          body: "Shops post limited-time deals here — check back soon." });
+      }
+      function paint(items) {
+        if (!items.length) { host.innerHTML = emptyHtml(); afterRender(); return; }
+        host.innerHTML = '<div class="cc-special-grid">' + items.map(function (it) {
+          var shop = it.shop;
+          var place = [shop.city, shop.state].filter(Boolean).join(", ");
+          var photos = it.po.photos || [];
+          return specialCard({
+            title: shortTitle(it.po.body),
+            imgSrc: CC.imgUrl("cc-post-images", photos[0]),
+            detail: it.po.body || "",
+            shopName: shop.name || "",
+            place: place
+          });
+        }).join("") + "</div>";
+        afterRender();
+      }
+
+      CC.sb.from("cc_posts")
+        .select("id,shop_id,body,photos,kind,created_at")
+        .eq("kind", "special")
+        .order("created_at", { ascending: false }).limit(4)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var posts = r.data || [];
+          if (!posts.length) { paint([]); return null; }
+          var shopIds = [];
+          posts.forEach(function (po) { if (shopIds.indexOf(po.shop_id) === -1) shopIds.push(po.shop_id); });
+          return CC.shopsPublic(function (qb) { return qb.in("id", shopIds); })
+            .then(function (sr) {
+              if (sr.error) throw sr.error;
+              var map = {};
+              (sr.data || []).forEach(function (s) { map[s.id] = s; });
+              var items = posts.map(function (po) { return { po: po, shop: map[po.shop_id] || {} }; });
+              var loc = savedLoc();
+              if (loc) {
+                return CC.resolveLocCoords(loc).then(function (coords) {
+                  var kept = {};
+                  CC.filterNearby(items.map(function (it) { return CC.adaptShop(it.shop); }), loc, coords)
+                    .forEach(function (s) { kept[s.id] = true; });
+                  paint(items.filter(function (it) { return it.shop.id && kept[it.shop.id]; }));
+                });
+              }
+              paint(items);
+            });
+        })
+        .catch(function () { failInto(host, "Couldn't load specials"); });
+    }
+
+    /* ---- Community preview: latest 3 posts (Stage 5 logic, folded in) ---- */
+    function fillPosts() {
+      var host = document.getElementById("home-posts");
+      if (!host) return;
+      host.innerHTML = CC.states.skeletonCards(4);
+
+      function emptyHtml() {
+        return CC.states.empty({ icon: "message", title: "No posts yet",
+          body: "The community feed is quiet for now — makers will share updates here soon.",
+          actionLabel: "Explore the community", actionHref: "community.html" });
+      }
+
+      if (!window.CC5) { failInto(host, "Couldn't load community posts"); return; }
+
+      CC.sb.from("cc_posts")
+        .select("id,shop_id,author_id,body,photos,product_id,kind,like_count,created_at")
+        .order("created_at", { ascending: false }).limit(3)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var posts = r.data || [];
+          if (!posts.length) { host.innerHTML = emptyHtml(); afterRender(); return null; }
+          var shopIds = [];
+          posts.forEach(function (po) { if (shopIds.indexOf(po.shop_id) === -1) shopIds.push(po.shop_id); });
+          return CC.sb.from("cc_shops_public").select("id,name,city,state,logo_url").in("id", shopIds)
+            .then(function (sr) {
+              if (sr.error) throw sr.error;
+              var map = {};
+              (sr.data || []).forEach(function (s) { map[s.id] = s; });
+              host.innerHTML = '<div class="cc-post-grid">' + posts.map(function (po) {
+                return CC5.postCard(po, map[po.shop_id], {});
+              }).join("") + "</div>";
+              CC5.bindActions(host);
+              afterRender();
+            });
+        })
+        .catch(function () { failInto(host, "Couldn't load community posts"); });
+    }
+
+    /* ---- Cravings preview: open, non-expired cravings (Stage 5 logic) ---- */
+    function fillCravings() {
+      var host = document.getElementById("home-cravings");
+      if (!host) return;
+
+      function emptyHtml() {
+        return CC.states.empty({ icon: "clipboard", title: "No cravings yet",
+          body: "Neighbors post what they're hungry for here." });
+      }
+
+      if (!window.CC5Cravings || !window.CC5) { failInto(host, "Couldn't load cravings"); return; }
+
+      CC.sb.from("cc_cravings")
+        .select("id,title,description,city,state,needed_by,budget_cents,photo_url,status,created_at")
+        .eq("status", "open").order("created_at", { ascending: false }).limit(4)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var list = (r.data || []).filter(function (c) { return !CC5.isExpired(c); });
+          if (!list.length) { host.innerHTML = emptyHtml(); afterRender(); return; }
+          host.innerHTML = '<div class="cc-craving-grid">' + list.map(function (c) {
+            return CC5Cravings.card(c, { compact: true });
+          }).join("") + "</div>";
+          afterRender();
+        })
+        .catch(function () { failInto(host, "Couldn't load cravings"); });
+
+      /* "Post a craving" CTA -> live board (sign-in first when logged out). */
+      var btn = document.getElementById("home-craving-btn");
+      if (btn && !btn._ccBound) {
+        btn._ccBound = true;
+        btn.addEventListener("click", function () {
+          CC5.requireAuth("post a craving").then(function (user) {
+            if (user) window.location.href = "cravings.html#new";
+          });
+        });
+      }
+    }
+
+    function fillLiveAll() {
+      if (!CC.sb) {
+        ["home-ready", "home-shops", "home-specials", "home-made", "home-newshops", "home-posts", "home-cravings"]
+          .forEach(function (id) {
+            var h = document.getElementById(id);
+            if (h) h.innerHTML = CC.states.error({ title: "Couldn't load this section",
+              body: "Check your connection and try again." });
+          });
+        afterRender();
+        return;
+      }
+      fillCategories();
+      fillProducts("home-ready", true);
+      fillProducts("home-made", false);
+      fillShops("home-shops", false);
+      fillShops("home-newshops", true);
+      fillSpecials();
+      fillPosts();
+      fillCravings();
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* Init: skeletons first, then branch on the backend probe           */
+    /* ---------------------------------------------------------------- */
+    ["home-ready", "home-shops", "home-specials", "home-made", "home-newshops", "home-posts"]
+      .forEach(function (id) {
+        var h = document.getElementById(id);
+        if (h) h.innerHTML = CC.states.skeletonCards(4);
+      });
+
+    if (CC.live) {
+      fillLiveAll();
+    } else if (CC.ready && typeof CC.ready.then === "function") {
+      CC.ready.then(function (st) {
+        if ((st && st.live) || CC.live) fillLiveAll();
+        else renderDemoAll();
+      }).catch(function () { renderDemoAll(); });
+    } else {
+      renderDemoAll();
+    }
+
+    /* Re-run the location-dependent fills when the user saves a location. */
+    document.addEventListener("cc:location-changed", function () {
+      if (!CC.live) return;
+      fillProducts("home-ready", true);
+      fillProducts("home-made", false);
+      fillShops("home-shops", false);
+      fillShops("home-newshops", true);
+      fillSpecials();
+    });
+  };
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="CraveCorner custom orders — request bespoke cakes, catering, and made-to-order food directly from local cooks.">
+<title>Custom Orders — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages + Stage 4 -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+<link rel="stylesheet" href="assets/css/stage4.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div id="s4-custom-root" aria-live="polite"></div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<!-- Stage 4: Supabase client + shared order/messaging/notification logic -->
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/app.js"></script>
+<script src="assets/js/cc-orders.js"></script>
+<script src="assets/js/cc-messages.js"></script>
+<script src="assets/js/cc-notify.js"></script>
+<script>
+/* ==========================================================================
+   Stage 4 — custom-order.html
+   ?shop=<id>  new custom order request for a shop
+   ?id=<id>    custom order detail (buyer or seller view)
+   (no params) my custom orders: sent + received
+   Payments stay off-platform — the UI says so everywhere money appears.
+   ========================================================================== */
+(function () {
+  'use strict';
+  if (!window.CC) return;
+  var CC = window.CC;
+  window.CC_ACTIVE_NAV = 'profile';
+
+  function esc(s) { return CC.esc(s); }
+  var params = new URLSearchParams(window.location.search);
+  var DETAIL_ID = params.get('id');
+  var SHOP_ID = params.get('shop');
+
+  window.CC_PAGE_INIT = function () {
+    var root = document.getElementById('s4-custom-root');
+    root.innerHTML = '<div class="cc-loading" role="status">Loading…</div>';
+    CC.ready.then(function (r) {
+      if (!r.live || !CC.sb) { emptyState(root, 'Custom orders need the live marketplace',
+        'This preview isn\u2019t connected to the CraveCorner backend yet. When it is, you can request bespoke cakes, catering platters, and made-to-order food straight from a local cook — with quotes, revisions, and acceptance all in one thread.'); return; }
+      if (!r.user) { emptyState(root, 'Sign in for custom orders',
+        'Custom orders need a CraveCorner account, and accounts arrive in Stage 2 — sign-ups aren\u2019t open yet.'); return; }
+      if (DETAIL_ID) renderDetail(root, r.user);
+      else if (SHOP_ID) renderForm(root, r.user, SHOP_ID);
+      else renderHub(root, r.user);
+    }).catch(function (e) {
+      root.innerHTML = CC.states.error({ title: 'Could not load', body: String((e && e.message) || e) });
+    });
+  };
+
+  function emptyState(root, title, body) {
+    root.innerHTML = '<div class="s4-page-head"><h1 class="cc-h2">Custom Orders</h1></div>' +
+      CC.states.empty({ icon: 'clipboard', title: title, body: body,
+        actionLabel: 'Explore the marketplace', actionHref: 'explore.html' }) +
+      '<p class="cc-caption" style="margin-top:1rem">' + CC.icon('shield') +
+      ' <span>CraveCorner never runs in-app checkout — payment is always arranged directly with the seller.</span></p>';
+  }
+
+  /* ---------------- hub: my custom orders ---------------- */
+
+  function renderHub(root, user) {
+    CC.myShop().then(function (shop) {
+      var q1 = CC.sb.from('cc_custom_orders').select('*').eq('buyer_id', user.id)
+        .order('created_at', { ascending: false }).limit(60);
+      var q2 = shop ? CC.sb.from('cc_custom_orders').select('*').eq('shop_id', shop.id)
+        .order('created_at', { ascending: false }).limit(60) : Promise.resolve({ data: [] });
+      return Promise.all([q1, q2]).then(function (rs) {
+        var mine = rs[0].data || [], incoming = (rs[1].data || []);
+        return enrichShops(mine.concat(incoming)).then(function () {
+          var html = '<div class="s4-page-head"><h1 class="cc-h2 s4-grow">Custom Orders</h1>' +
+            '<button type="button" class="cc-btn cc-btn-primary cc-btn-sm" id="s4-new-custom">' + CC.icon('plus') + 'New request</button></div>';
+          html += '<p class="cc-caption" style="margin-bottom:1rem">' + CC.icon('shield') +
+            ' <span>Bespoke cakes, catering, and made-to-order food. Quotes come from the seller — payment is always arranged directly with them, never in the app.</span></p>';
+          if (incoming.length) {
+            html += '<h2 class="s4-section-title">Requests for your shop</h2><div class="s4-order-list">' +
+              incoming.map(function (o) { return customCardHtml(o, true); }).join('') + '</div>';
+          }
+          html += '<h2 class="s4-section-title" style="margin-top:1.2rem">Your requests</h2>';
+          html += mine.length
+            ? '<div class="s4-order-list">' + mine.map(function (o) { return customCardHtml(o, false); }).join('') + '</div>'
+            : CC.states.empty({ icon: 'clipboard', title: 'No custom requests yet',
+                body: 'Pick a shop and describe what you\u2019re dreaming of — the seller replies with a quote.' });
+          root.innerHTML = html;
+          root.querySelector('#s4-new-custom').addEventListener('click', function () {
+            CC.pickShop(function (shop) {
+              if (shop) window.location.href = 'custom-order.html?shop=' + encodeURIComponent(shop.id);
+            });
+          });
+          Array.prototype.forEach.call(root.querySelectorAll('[data-custom]'), function (c) {
+            c.addEventListener('click', function () {
+              window.location.href = 'custom-order.html?id=' + encodeURIComponent(c.getAttribute('data-custom'));
+            });
+          });
+        });
+      });
+    }).catch(function (e) {
+      root.innerHTML = CC.states.error({ title: 'Could not load custom orders', body: String((e && e.message) || e) });
+    });
+  }
+
+  var _shopNames = {};
+  function enrichShops(orders) {
+    var ids = {};
+    orders.forEach(function (o) { ids[o.shop_id] = 1; });
+    var list = Object.keys(ids).filter(function (id) { return !_shopNames[id]; });
+    if (!list.length) return Promise.resolve();
+    return CC.sb.from('cc_shops_public').select('id, name').in('id', list).then(function (r) {
+      (r.data || []).forEach(function (s) { _shopNames[s.id] = s.name; });
+    });
+  }
+
+  function customCardHtml(o, isSeller) {
+    var title = [o.occasion, o.food_type].filter(Boolean).join(' · ') || 'Custom order';
+    return '<button type="button" class="s4-order-card" data-custom="' + esc(o.id) + '">' +
+      '<span class="s4-order-top">' +
+        '<span class="s4-order-thumb s4-conv-avatar">' + CC.icon('clipboard') + '</span>' +
+        '<span class="s4-order-meta"><span class="s4-order-name">' + esc(title) + '</span>' +
+        '<span class="s4-order-sub" style="display:block">' +
+          (isSeller ? '' : esc(_shopNames[o.shop_id] || '') + (o.needed_by ? ' · needs ' + esc(CC.formatDate(o.needed_by)) : '')) +
+          (isSeller ? (o.needed_by ? 'Needs ' + esc(CC.formatDate(o.needed_by)) : esc(CC.formatDateTime(o.created_at))) : '') +
+        '</span></span>' + CC.customOrderChip(o.status) +
+      '</span></button>';
+  }
+
+  /* ---------------- new request form ---------------- */
+
+  function renderForm(root, user, shopId) {
+    root.innerHTML =
+      '<div class="s4-page-head"><a class="s4-back" href="custom-order.html"><span aria-hidden="true">‹</span> Custom orders</a></div>' +
+      '<div class="cc-loading" role="status">Loading shop…</div>';
+    CC.getPublicShop(shopId).then(function (shop) {
+      if (!shop) {
+        root.innerHTML = CC.states.error({ title: 'Shop unavailable', body: 'That shop isn\u2019t published right now.' });
+        return;
+      }
+      renderFormView(root, user, shop);
+    }).catch(function (e) {
+      root.innerHTML = CC.states.error({ title: 'Could not load shop', body: String((e && e.message) || e) });
+    });
+  }
+
+  function renderFormView(root, user, shop) {
+    var photos = []; // uploaded storage paths
+    root.innerHTML =
+      '<div class="s4-page-head"><a class="s4-back" href="custom-order.html"><span aria-hidden="true">‹</span> Custom orders</a>' +
+      '<h1 class="cc-h2 s4-grow">Request a custom order</h1></div>' +
+      '<div class="s4-modal-product">' +
+        (shop.logo_url ? '<img src="' + esc(CC.imgUrl('cc-shop-images', shop.logo_url)) + '" alt="">'
+                       : '<span class="s4-conv-avatar">' + CC.icon('store') + '</span>') +
+        '<div class="s4-grow"><strong>' + esc(shop.name) + '</strong>' +
+        '<span>' + esc([shop.city, shop.state].filter(Boolean).join(', ')) + '</span></div>' +
+      '</div>' +
+      '<form id="s4-cform" novalidate>' +
+      '<div class="s4-panel" style="margin-bottom:1rem"><h2 class="s4-section-title">The occasion</h2>' +
+        field('occasion', 'Occasion', 'text', 'Birthday, wedding, office party…', false) +
+        field('food_type', 'What kind of food?', 'text', 'Cake, cupcakes, tamales, catering trays…', true) +
+        '<div class="cc-field"><label class="cc-label" for="s4-design">Design description <span class="cc-req">*</span></label>' +
+        '<textarea class="cc-textarea" id="s4-design" maxlength="2000" placeholder="Describe what you\u2019re dreaming of — size, shape, style…"></textarea></div>' +
+        '<div class="cc-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">' +
+          field('theme', 'Theme', 'text', 'Floral, rustic…', false) +
+          field('colors', 'Colors', 'text', 'Blush pink and gold…', false) +
+        '</div>' +
+        '<div class="cc-field"><label class="cc-label" for="s4-flavor-in">Flavors</label>' +
+        '<div class="s4-row"><input class="cc-input s4-grow" id="s4-flavor-in" placeholder="e.g. vanilla bean" maxlength="60">' +
+        '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" id="s4-flavor-add">Add</button></div>' +
+        '<div class="s4-chip-input-row" id="s4-flavors"></div></div>' +
+      '</div>' +
+      '<div class="s4-panel" style="margin-bottom:1rem"><h2 class="s4-section-title">Quantity &amp; timing</h2>' +
+        '<div class="cc-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">' +
+          field('servings', 'Servings needed', 'number', '24', false) +
+          field('qty', 'Quantity', 'number', '1', false) +
+        '</div>' +
+        field('needed_by', 'Needed by', 'date', '', true, CC.todayStr()) +
+        field('budget', 'Your budget ($) — optional', 'number', '75.00', false) +
+      '</div>' +
+      '<div class="s4-panel" style="margin-bottom:1rem"><h2 class="s4-section-title">Reference photos <span class="cc-muted" style="font-weight:500">(optional)</span></h2>' +
+        '<p class="cc-caption">Up to 6 photos, 5 MB each. They\u2019re visible to the seller only in this thread.</p>' +
+        '<div class="s4-photo-grid" id="s4-photos">' +
+          '<button type="button" class="s4-photo-pick" id="s4-photo-add" aria-label="Add a reference photo">' + CC.icon('upload') + '</button>' +
+        '</div>' +
+        '<input type="file" id="s4-photo-input" accept="image/*" multiple hidden>' +
+      '</div>' +
+      '<div class="s4-panel" style="margin-bottom:1rem"><h2 class="s4-section-title">Anything else</h2>' +
+        '<div class="cc-field"><label class="cc-label" for="s4-instructions">Special instructions</label>' +
+        '<textarea class="cc-textarea" id="s4-instructions" maxlength="2000" placeholder="Delivery details, setup needs, surprises to avoid…"></textarea></div>' +
+        '<div class="cc-field"><label class="cc-label" for="s4-allergens">Allergen concerns</label>' +
+        '<textarea class="cc-textarea" id="s4-allergens" style="min-height:72px" maxlength="1000" placeholder="Nut allergy, gluten-free needed…"></textarea></div>' +
+      '</div>' +
+      '<div class="cc-alert cc-alert-danger s4-form-error" id="s4-c-err" role="alert"></div>' +
+      '<p class="cc-caption">' + CC.icon('shield') + ' <span>The seller replies with a quote. Payment is always arranged directly with them — CraveCorner has no checkout and never touches the money.</span></p>' +
+      '<div class="s4-actions"><button type="submit" class="cc-btn cc-btn-primary cc-btn-block cc-btn-lg" id="s4-c-submit">Send custom order request</button></div>' +
+      '</form>';
+
+    var flavors = [];
+    var flavorsBox = root.querySelector('#s4-flavors');
+    function paintFlavors() {
+      flavorsBox.innerHTML = flavors.map(function (f, ix) {
+        return '<span class="s4-flavor-chip">' + esc(f) +
+          '<button type="button" data-rm="' + ix + '" aria-label="Remove ' + esc(f) + '">×</button></span>';
+      }).join('');
+      Array.prototype.forEach.call(flavorsBox.querySelectorAll('[data-rm]'), function (b) {
+        b.addEventListener('click', function () { flavors.splice(parseInt(b.getAttribute('data-rm'), 10), 1); paintFlavors(); });
+      });
+    }
+    function addFlavor() {
+      var inp = root.querySelector('#s4-flavor-in');
+      var v = inp.value.trim();
+      if (v && flavors.length < 12 && flavors.indexOf(v) === -1) { flavors.push(v); paintFlavors(); }
+      inp.value = ''; inp.focus();
+    }
+    root.querySelector('#s4-flavor-add').addEventListener('click', addFlavor);
+    root.querySelector('#s4-flavor-in').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); addFlavor(); }
+    });
+
+    /* Reference photo uploads -> cc-message-images bucket. */
+    var fileInput = root.querySelector('#s4-photo-input');
+    var photosBox = root.querySelector('#s4-photos');
+    root.querySelector('#s4-photo-add').addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function () {
+      var files = Array.prototype.slice.call(fileInput.files || []);
+      fileInput.value = '';
+      if (!files.length) return;
+      if (photos.length + files.length > 6) { fail('Up to 6 reference photos.'); return; }
+      var btn = root.querySelector('#s4-photo-add');
+      btn.disabled = true;
+      /* CC.uploadMessageImages caps at 4 files per call — chunk bigger picks. */
+      var chunks = [];
+      for (var ci = 0; ci < files.length; ci += 4) chunks.push(files.slice(ci, ci + 4));
+      chunks.reduce(function (p, chunk) {
+        return p.then(function (all) {
+          return CC.uploadMessageImages(chunk).then(function (paths) { return all.concat(paths); });
+        });
+      }, Promise.resolve([])).then(function (paths) {
+        btn.disabled = false;
+        paths.forEach(function (p) { photos.push(p); });
+        paintPhotos();
+      }).catch(function (e) { btn.disabled = false; fail(e.message); });
+    });
+    function paintPhotos() {
+      var addBtn = root.querySelector('#s4-photo-add');
+      photosBox.innerHTML = '';
+      photos.forEach(function (p, ix) {
+        var wrap = document.createElement('span');
+        wrap.className = 's4-photo-pick';
+        wrap.innerHTML = '<img src="' + esc(CC.imgUrl('cc-message-images', p)) + '" alt="Reference photo ' + (ix + 1) + '">' +
+          '<button type="button" aria-label="Remove photo ' + (ix + 1) + '">×</button>';
+        wrap.querySelector('button').addEventListener('click', function () { photos.splice(ix, 1); paintPhotos(); });
+        photosBox.appendChild(wrap);
+      });
+      photosBox.appendChild(addBtn);
+      addBtn.style.display = photos.length >= 6 ? 'none' : '';
+    }
+
+    var errBox = root.querySelector('#s4-c-err');
+    function fail(msg) {
+      errBox.innerHTML = CC.icon('warning') + '<div>' + esc(msg) + '</div>';
+      errBox.classList.add('is-show');
+      errBox.scrollIntoView({ block: 'nearest' });
+    }
+
+    root.querySelector('#s4-cform').addEventListener('submit', function (e) {
+      e.preventDefault();
+      errBox.classList.remove('is-show');
+      var val = function (id) { return root.querySelector('#s4-' + id).value.trim(); };
+      var design = val('design'), foodType = val('food_type'), neededBy = val('needed_by');
+      if (!foodType) { fail('Tell the seller what kind of food you want.'); return; }
+      if (!design) { fail('Describe the design — the seller needs details to quote accurately.'); return; }
+      if (!neededBy) { fail('Pick the date you need it by.'); return; }
+      var servings = parseInt(val('servings'), 10), qty = parseInt(val('qty'), 10);
+      if (val('servings') && !(servings > 0)) { fail('Servings must be a positive number.'); return; }
+      if (val('qty') && !(qty > 0)) { fail('Quantity must be a positive number.'); return; }
+      var budgetRaw = val('budget'), budgetCents = null;
+      if (budgetRaw) {
+        budgetCents = Math.round(parseFloat(budgetRaw) * 100);
+        if (!(budgetCents >= 0)) { fail('Enter a valid budget.'); return; }
+      }
+      var btn = root.querySelector('#s4-c-submit');
+      btn.disabled = true; btn.textContent = 'Sending…';
+      CC.sb.from('cc_custom_orders').insert({
+        shop_id: shop.id, buyer_id: user.id,
+        occasion: val('occasion') || null,
+        food_type: foodType,
+        design_desc: design,
+        theme: val('theme') || null,
+        colors: val('colors') || null,
+        flavors: flavors.length ? flavors : null,
+        servings: val('servings') ? servings : null,
+        qty: val('qty') ? qty : null,
+        needed_by: neededBy,
+        reference_photos: photos.length ? photos : null,
+        budget_cents: budgetCents,
+        instructions: val('instructions') || null,
+        allergen_concerns: val('allergens') || null,
+        status: 'open'
+      }).select('id').single().then(function (ins) {
+        if (ins.error) throw new Error(ins.error.message);
+        window.location.href = 'custom-order.html?id=' + encodeURIComponent(ins.data.id);
+      }).catch(function (err) {
+        btn.disabled = false; btn.textContent = 'Send custom order request';
+        fail(err.message || 'Couldn\u2019t send the request.');
+      });
+    });
+  }
+
+  function field(id, label, type, placeholder, required, min) {
+    return '<div class="cc-field"><label class="cc-label" for="s4-' + id + '">' + esc(label) +
+      (required ? ' <span class="cc-req">*</span>' : '') + '</label>' +
+      '<input class="cc-input" id="s4-' + id + '" type="' + type + '"' +
+      (placeholder ? ' placeholder="' + esc(placeholder) + '"' : '') +
+      (min ? ' min="' + esc(min) + '"' : '') + '></div>';
+  }
+
+  /* ---------------- detail ---------------- */
+
+  function renderDetail(root, user) {
+    root.innerHTML =
+      '<div class="s4-page-head"><a class="s4-back" href="custom-order.html"><span aria-hidden="true">‹</span> Custom orders</a></div>' +
+      '<div class="cc-loading" role="status">Loading…</div>';
+    CC.sb.from('cc_custom_orders').select('*').eq('id', DETAIL_ID).maybeSingle().then(function (r) {
+      if (r.error) throw new Error(r.error.message);
+      var co = r.data;
+      if (!co) throw new Error('Custom order not found.');
+      return CC.myShop().then(function (shop) {
+        var role = co.buyer_id === user.id ? 'buyer'
+          : (shop && shop.id === co.shop_id) || CC.isAdmin ? 'seller' : 'buyer';
+        return Promise.all([
+          co, role,
+          CC.getPublicShop(co.shop_id),
+          CC.sb.from('cc_quotes').select('*').eq('custom_order_id', co.id)
+            .order('created_at', { ascending: false }).then(function (x) { return x.data || []; })
+        ]);
+      });
+    }).then(function (all) {
+      renderDetailView(root, user, all[0], all[1], all[2], all[3]);
+    }).catch(function (e) {
+      root.innerHTML = '<div class="s4-page-head"><a class="s4-back" href="custom-order.html"><span aria-hidden="true">‹</span> Custom orders</a></div>' +
+        CC.states.error({ title: 'Not found', body: String((e && e.message) || e) });
+    });
+  }
+
+  function detailRow(dt, dd) {
+    if (!dd) return '';
+    return '<dt>' + esc(dt) + '</dt><dd>' + dd + '</dd>';
+  }
+
+  function renderDetailView(root, user, co, role, shop, quotes) {
+    var isSeller = role === 'seller';
+    var title = [co.occasion, co.food_type].filter(Boolean).join(' · ') || 'Custom order';
+    var hero =
+      '<div class="s4-hero"><div class="s4-hero-top">' +
+        '<span class="s4-order-thumb s4-conv-avatar" style="width:72px;height:72px">' + CC.icon('clipboard') + '</span>' +
+        '<div class="s4-grow"><h2>' + esc(title) + '</h2>' +
+        '<div class="s4-hero-sub">' + esc(isSeller ? 'Customer request' : (shop && shop.name) || '') +
+        ' · ' + esc(CC.formatDateTime(co.created_at)) + '</div>' +
+        '<div style="margin-top:.4rem">' + CC.customOrderChip(co.status) + '</div></div>' +
+      '</div></div>';
+
+    var rows =
+      '<dl class="s4-kv">' +
+      detailRow('Occasion', co.occasion ? esc(co.occasion) : '') +
+      detailRow('Food', co.food_type ? esc(co.food_type) : '') +
+      detailRow('Servings', co.servings ? esc(co.servings) : '') +
+      detailRow('Quantity', co.qty ? esc(co.qty) : '') +
+      detailRow('Needed by', co.needed_by ? esc(CC.formatDate(co.needed_by)) : '') +
+      detailRow('Budget', co.budget_cents != null ? esc(CC.centsToPrice(co.budget_cents)) : '') +
+      '</dl>';
+    if (co.design_desc) rows += '<div class="s4-note-box"><strong>Design:</strong> ' + esc(co.design_desc) + '</div>';
+    if (co.theme || co.colors) rows += '<div class="s4-note-box"><strong>Theme:</strong> ' +
+      esc([co.theme, co.colors].filter(Boolean).join(' · ')) + '</div>';
+    if (co.flavors && co.flavors.length) rows += '<div class="s4-note-box"><strong>Flavors:</strong> ' + esc(co.flavors.join(', ')) + '</div>';
+    if (co.instructions) rows += '<div class="s4-note-box"><strong>Instructions:</strong> ' + esc(co.instructions) + '</div>';
+    if (co.allergen_concerns) rows += '<div class="cc-alert cc-alert-warn" style="margin-top:.8rem">' + CC.icon('warning') +
+      '<div><strong>Allergen concerns:</strong> ' + esc(co.allergen_concerns) + '</div></div>';
+    if (co.reference_photos && co.reference_photos.length) {
+      rows += '<div style="margin-top:.8rem"><strong class="s4-small">Reference photos</strong><div class="s4-attach-row" style="margin-top:.4rem">' +
+        co.reference_photos.map(function (p, ix) {
+          return '<a href="' + esc(CC.imgUrl('cc-message-images', p)) + '" target="_blank" rel="noopener">' +
+            '<img src="' + esc(CC.imgUrl('cc-message-images', p)) + '" alt="Reference photo ' + (ix + 1) + '"></a>';
+        }).join('') + '</div></div>';
+    }
+
+    var latestPending = null;
+    for (var qi = 0; qi < quotes.length; qi++) {
+      if (quotes[qi].status === 'pending') { latestPending = quotes[qi]; break; }
+    }
+    var quotesHtml = '<div class="s4-panel"><h3 class="s4-section-title">Quotes</h3>';
+    if (!quotes.length) {
+      quotesHtml += '<p class="cc-caption">' + (isSeller
+        ? 'No quotes yet — send the customer a clear price below.'
+        : 'No quotes yet — the seller has been notified and will reply with pricing.') + '</p>';
+    } else {
+      quotesHtml += quotes.map(function (q) {
+        var canMark = isSeller && q.status === 'pending' && co.status === 'accepted';
+        var canRevise = isSeller && q.status === 'pending';
+        return '<div class="s4-quote-card' + (q.status === 'accepted' ? ' is-accepted' : '') + '">' +
+          '<div class="s4-quote-head"><span class="s4-quote-amount">' + esc(CC.centsToPrice(q.amount_cents)) + '</span>' +
+          CC.quoteChip(q.status) + '</div>' +
+          (q.details ? '<p class="s4-small">' + esc(q.details) + '</p>' : '') +
+          '<div class="s4-quote-meta">' +
+            (q.deposit_cents ? '<span>Deposit: ' + esc(CC.centsToPrice(q.deposit_cents)) + '</span>' : '') +
+            (q.valid_until ? '<span>Valid until ' + esc(CC.formatDate(q.valid_until)) + '</span>' : '') +
+            '<span>Sent ' + esc(CC.formatDateTime(q.created_at)) + '</span>' +
+          '</div>' +
+          (canMark || canRevise ? '<div class="s4-actions">' +
+            (canMark ? '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" data-q-accept="' + esc(q.id) + '">' + CC.icon('check') + 'Mark accepted</button>' : '') +
+            (canRevise ? '<button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" data-q-revise="' + esc(q.id) + '">' + CC.icon('edit') + 'Revise</button>' : '') +
+          '</div>' : '') +
+        '</div>';
+      }).join('');
+    }
+    quotesHtml += '</div>';
+
+    /* Actions */
+    var acts = [];
+    function act(id, label, icon, kind) { acts.push({ id: id, label: label, icon: icon, kind: kind }); }
+    if (!isSeller) {
+      if (co.status === 'quoted' && latestPending) act('accept', 'Accept quote (' + CC.centsToPrice(latestPending.amount_cents) + ')', 'check', 'primary');
+      if (co.status === 'open' || co.status === 'quoted') act('cancel', 'Cancel request', 'delete', 'danger');
+      act('message', 'Message seller', 'message', 'ghost');
+    } else {
+      if (co.status === 'open' || co.status === 'quoted') {
+        act('quote', latestPending ? 'Send a new quote' : 'Send quote', 'edit', 'primary');
+        act('ask', 'Ask a question', 'message', 'ghost');
+        act('decline', 'Decline', 'delete', 'danger');
+      }
+      if (co.status === 'accepted') act('complete', 'Mark completed', 'star', 'primary');
+      if (co.status !== 'declined' && co.status !== 'canceled' && co.status !== 'completed') act('message', 'Message customer', 'message', 'ghost');
+    }
+    var actionsHtml = acts.length
+      ? '<div class="s4-panel"><h3 class="s4-section-title">' + (isSeller ? 'Manage' : 'Your options') + '</h3>' +
+        '<div class="s4-actions">' + acts.map(function (a) {
+          var cls = a.kind === 'primary' ? 'cc-btn-primary' : a.kind === 'danger' ? 'cc-btn-danger' : a.kind === 'ghost' ? 'cc-btn-ghost' : 'cc-btn-secondary';
+          return '<button type="button" class="cc-btn ' + cls + ' cc-btn-sm" data-act="' + esc(a.id) + '">' + CC.icon(a.icon) + esc(a.label) + '</button>';
+        }).join('') + '</div><div class="cc-alert cc-alert-danger s4-form-error" id="s4-cact-err" role="alert"></div></div>'
+      : '';
+
+    root.innerHTML =
+      '<div class="s4-page-head"><a class="s4-back" href="custom-order.html"><span aria-hidden="true">‹</span> Custom orders</a>' +
+      '<h1 class="cc-h2 s4-grow">Custom order</h1></div>' +
+      '<div class="s4-detail-grid"><div>' + hero +
+        '<div class="s4-panel"><h3 class="s4-section-title">Request details</h3>' + rows +
+        '<div class="s4-payline">' + CC.icon('shield') + '<div>Payment is always arranged directly with the seller — CraveCorner has no checkout and never touches the money.</div></div></div>' +
+        quotesHtml +
+      '</div><div>' + actionsHtml + '</div></div>';
+
+    wireDetailActions(root, user, co, role, latestPending);
+  }
+
+  function actError(root, e) {
+    var eb = root.querySelector('#s4-cact-err');
+    if (eb) {
+      eb.innerHTML = CC.icon('warning') + '<div>' + esc((e && e.message) || 'Something went wrong.') + '</div>';
+      eb.classList.add('is-show');
+    } else {
+      CC.s4Honest('Something went wrong', '<p>' + esc((e && e.message) || 'Please try again.') + '</p>');
+    }
+  }
+
+  function wireDetailActions(root, user, co, role, latestPending) {
+    var isSeller = role === 'seller';
+    function refresh() { renderDetail(root, user); }
+    Array.prototype.forEach.call(root.querySelectorAll('[data-act]'), function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-act');
+        btn.disabled = true;
+        var done = function () { btn.disabled = false; };
+        if (id === 'cancel' || id === 'decline' || id === 'complete') {
+          var to = id === 'cancel' ? 'canceled' : id === 'decline' ? 'declined' : 'completed';
+          var titles = { canceled: 'Cancel this request?', declined: 'Decline this request?', completed: 'Mark this order completed?' };
+          CC.s4Modal(titles[to],
+            '<p>' + esc(id === 'complete' ? 'The customer will be notified.' : 'The ' + (isSeller ? 'customer' : 'seller') + ' will be notified.') + '</p>' +
+            '<div class="cc-modal-actions"><button type="button" class="cc-btn cc-btn-ghost" data-s4-close>Keep it</button>' +
+            '<button type="button" class="cc-btn cc-btn-danger" id="s4-c-yes">Yes, continue</button></div>')
+            .el.querySelector('#s4-c-yes').addEventListener('click', function (ev) {
+              ev.target.disabled = true;
+              CC.sb.from('cc_custom_orders').update({ status: to }).eq('id', co.id)
+                .then(function (r) {
+                  if (r.error) throw new Error(r.error.message);
+                  CC.closeModal(); refresh();
+                }).catch(function (e) { CC.closeModal(); done(); actError(root, e); });
+            });
+          done();
+        } else if (id === 'accept') {
+          // Buyer accepts the latest pending quote.
+          CC.acceptCustomQuote(co, latestPending).then(refresh).catch(function (e) { done(); actError(root, e); });
+        } else if (id === 'quote') {
+          CC.openQuoteModal({ customOrderId: co.id, onSent: refresh });
+          done();
+          var obs = new MutationObserver(function () {
+            if (!document.querySelector('[data-s4-modal]')) { obs.disconnect(); refresh(); }
+          });
+          obs.observe(document.body, { childList: true });
+        } else if (id === 'message' || id === 'ask') {
+          CC.ensureConversation(co.shop_id, null).then(function (c) {
+            window.location.href = 'inbox.html?conv=' + encodeURIComponent(c.id);
+          }).catch(function (e) { done(); actError(root, e); });
+        }
+      });
+    });
+    Array.prototype.forEach.call(root.querySelectorAll('[data-q-accept]'), function (btn) {
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        CC.setQuoteStatus(btn.getAttribute('data-q-accept'), 'accepted')
+          .then(refresh).catch(function (e) { btn.disabled = false; actError(root, e); });
+      });
+    });
+    Array.prototype.forEach.call(root.querySelectorAll('[data-q-revise]'), function (btn) {
+      btn.addEventListener('click', function () {
+        var qid = btn.getAttribute('data-q-revise');
+        CC.setQuoteStatus(qid, 'revised').then(function () {
+          CC.openQuoteModal({ customOrderId: co.id, onSent: refresh });
+        }).catch(function (e) { actError(root, e); });
+      });
+    });
+  }
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

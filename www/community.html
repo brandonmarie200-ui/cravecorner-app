@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="CraveCorner community — see what local home cooks are making, baking, and sharing.">
+<title>Community — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+<!-- Stage 5: live community components (additive — no Stage 1 styles changed) -->
+<link rel="stylesheet" href="assets/css/cc-stage5.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div class="pg-head">
+      <h1>Community</h1>
+      <p class="cc-lead">Fresh from local kitchens — what home cooks are making, baking, and sharing.</p>
+    </div>
+
+    <div class="pg-tabs" role="tablist" aria-label="Community feeds">
+      <button type="button" class="pg-tab" role="tab" id="pg-tab-nearby" aria-selected="true" data-tab="nearby">Nearby</button>
+      <button type="button" class="pg-tab" role="tab" id="pg-tab-following" aria-selected="false" data-tab="following">Following</button>
+      <button type="button" class="pg-tab" role="tab" id="pg-tab-nationwide" aria-selected="false" data-tab="nationwide">Nationwide</button>
+    </div>
+
+    <div id="pg-loc-note"></div>
+    <div class="pg-posts" id="pg-posts" role="tabpanel" aria-live="polite" aria-label="Community posts"></div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<!-- Stage 5: live backend client + shared live helpers (no-ops when not live) -->
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/cc-community.js"></script>
+<script src="assets/js/app.js"></script>
+<!-- STAGE 4: notification bell badge + dropdown (hooks the header; app.js untouched) -->
+<script src="assets/js/cc-notify.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var main = document.getElementById('cc-main');
+  function fatal(msg) {
+    main.innerHTML = '<div class="cc-container cc-section"><div class="cc-alert cc-alert-danger" role="alert">' + msg + '</div></div>';
+  }
+  if (!window.CC || !window.CC_DEMO) {
+    fatal('CraveCorner could not load. Check your connection and reload the page.');
+    return;
+  }
+  var CC = window.CC;
+  var D = window.CC_DEMO;
+
+  /* Shared chrome (header/footer/demo banner) is rendered by
+     assets/js/app.js on DOMContentLoaded — set the active nav
+     before that fires. */
+  window.CC_ACTIVE_NAV = 'community';
+
+  function norm(s) { return String(s == null ? '' : s).toLowerCase(); }
+
+  var shopById = {}, i;
+  var shops = D.SHOPS || [];
+  for (i = 0; i < shops.length; i++) shopById[shops[i].id] = shops[i];
+
+  function locLabel() {
+    var l = CC.location;
+    if (!l) return '';
+    if (typeof l === 'string') return l;
+    return l.label || l.city || '';
+  }
+  function cityMatches(pCity, loc) {
+    var c = norm(pCity), l = norm(loc);
+    return !!(c && l && (l.indexOf(c) !== -1 || c.indexOf(l) !== -1));
+  }
+  function getFollows() {
+    try {
+      var f = JSON.parse(window.localStorage.getItem('cc-follows') || '[]');
+      return Array.isArray(f) ? f : [];
+    } catch (e) { return []; }
+  }
+
+  var postsEl = document.getElementById('pg-posts');
+  var locNoteEl = document.getElementById('pg-loc-note');
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[data-tab]'));
+  var activeTab = 'nearby';
+
+  function setTab(name) {
+    activeTab = name;
+    tabs.forEach(function (t) {
+      t.setAttribute('aria-selected', t.getAttribute('data-tab') === name ? 'true' : 'false');
+    });
+    render();
+  }
+
+  function render() {
+    var all = D.POSTS || [];
+    var list = all.slice();
+    locNoteEl.innerHTML = '';
+
+    if (activeTab === 'nearby') {
+      var loc = locLabel();
+      if (loc) {
+        list = list.filter(function (po) {
+          var s = shopById[po.shopId];
+          return s && cityMatches(s.city, loc);
+        });
+      } else {
+        locNoteEl.innerHTML =
+          '<div class="cc-alert cc-alert-info" style="margin-bottom: var(--cc-space-4);">' +
+            '<span data-icon-slot="location"></span>' +
+            '<span><strong>Showing everything for now.</strong> Set your location to see posts from kitchens near you. ' +
+            '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" id="pg-set-loc" style="margin-left: 0.5rem;">Set location</button></span>' +
+          '</div>';
+        var tmp = document.createElement('span');
+        tmp.innerHTML = CC.icon('location');
+        var slotEl = locNoteEl.querySelector('[data-icon-slot]');
+        if (slotEl && tmp.firstChild) slotEl.parentNode.replaceChild(tmp.firstChild, slotEl);
+        var setLocBtn = document.getElementById('pg-set-loc');
+        if (setLocBtn) setLocBtn.addEventListener('click', function () { CC.openLocationModal(); });
+      }
+    } else if (activeTab === 'following') {
+      var follows = getFollows();
+      list = list.filter(function (po) { return follows.indexOf(po.shopId) !== -1; });
+    }
+
+    if (!list.length && activeTab === 'following') {
+      postsEl.innerHTML = CC.states.empty({
+        icon: 'heart',
+        title: 'Follow shops to fill this feed',
+        body: 'When you follow a shop, their latest posts will show up here. Sign in (it\u2019s free) to follow shops.',
+        actionLabel: 'Sign in / Sign up',
+        actionHref: 'auth.html?next=' + encodeURIComponent('community.html')
+      });
+      return;
+    }
+    if (!list.length) {
+      postsEl.innerHTML = CC.states.empty({
+        icon: 'message',
+        title: 'No posts here yet',
+        body: 'Nothing from this area in the preview — try the Nationwide feed instead.',
+        actionLabel: 'View Nationwide',
+        actionHref: 'community.html'
+      });
+      /* Make the empty-state action switch to the Nationwide tab instead of reloading */
+      var emptyAction = postsEl.querySelector('.cc-empty-actions a, .cc-empty-actions button');
+      if (emptyAction) {
+        emptyAction.addEventListener('click', function (e) {
+          e.preventDefault();
+          setTab('nationwide');
+        });
+      }
+      return;
+    }
+
+    postsEl.innerHTML = list.map(function (po) { return CC.postCard(po); }).join('');
+  }
+
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () { setTab(t.getAttribute('data-tab')); });
+  });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) render(); });
+
+  render();
+})();
+</script>
+<script>
+/* ==========================================================================
+   Stage 5 — LIVE community feed (appended 2026-10-11; Stage 1 code above is
+   untouched). When the backend is live (CC.live), this takes over the tabs
+   and feed with real Supabase data:
+     - Nearby: posts from shops in the user's saved city (CC.location)
+     - Following: posts from shops the user follows (cc_follows)
+     - Nationwide: latest posts everywhere
+   Like / Follow / Share / Report / Delete-all write through CC5 helpers to
+   cc_likes, cc_follows, cc_reports, cc_posts. like_count is always the
+   trigger-maintained value re-read from the DB — never invented.
+   When the backend is NOT live, this whole block returns early and the
+   Stage 1 demo behavior above runs exactly as before.
+   ========================================================================== */
+(function () {
+  'use strict';
+  if (!window.CC || !window.CC5) return;
+  var CC = window.CC;
+  var CC5 = window.CC5;
+
+  CC.ready.then(function (st) {
+    if (!st.live) return; /* demo path stays exactly as Stage 1 */
+    initLiveFeed();
+  });
+
+  var PAGE = 20;
+
+  function norm(s) { return String(s == null ? '' : s).toLowerCase(); }
+  function cityMatches(shopCity, locCity) {
+    var c = norm(shopCity), l = norm(locCity);
+    return !!(c && l && (l.indexOf(c) !== -1 || c.indexOf(l) !== -1));
+  }
+
+  function initLiveFeed() {
+    var postsEl = document.getElementById('pg-posts');
+    var locNoteEl = document.getElementById('pg-loc-note');
+    var tabsWrap = document.querySelector('.pg-tabs');
+
+    /* The Stage 1 tab buttons carry demo listeners that read the (now
+       emptied) demo arrays — swap the node to drop them, then bind live. */
+    var fresh = tabsWrap.cloneNode(true);
+    tabsWrap.parentNode.replaceChild(fresh, tabsWrap);
+    var tabs = Array.prototype.slice.call(fresh.querySelectorAll('[data-tab]'));
+
+    var activeTab = 'nearby';
+    var page = 0, done = false, loading = false;
+    var posts = [], shopMap = {}, productMap = {}, likedSet = {}, followedSet = {};
+    var uid = CC.user && CC.user.id;
+
+    CC5.bindActions(postsEl);
+    CC.onAuth(function (event, user) {
+      var next = user && user.id;
+      if (next !== uid) { uid = next; CC5.clearShopCache(); load(true); }
+    });
+
+    function setTab(name) {
+      activeTab = name;
+      tabs.forEach(function (t) {
+        t.setAttribute('aria-selected', t.getAttribute('data-tab') === name ? 'true' : 'false');
+      });
+      page = 0; done = false;
+      load(true);
+    }
+    tabs.forEach(function (t) {
+      t.addEventListener('click', function () { setTab(t.getAttribute('data-tab')); });
+    });
+
+    /* The Stage 1 visibilitychange listener (registered earlier) re-renders
+       the demo empty state; this one is registered later so it runs after
+       and the live feed wins. */
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) load(true); });
+
+    function locCity() {
+      var l = CC.location.get();
+      return l && l.city ? l.city : '';
+    }
+
+    function renderLocNote() {
+      locNoteEl.innerHTML = '';
+      if (activeTab !== 'nearby') return;
+      var city = locCity();
+      if (city) return;
+      locNoteEl.innerHTML =
+        '<div class="cc-alert cc-alert-info" style="margin-bottom: var(--cc-space-4);">' +
+          CC.icon('location') +
+          '<span><strong>Showing everything for now.</strong> Set your location to see posts from kitchens near you. ' +
+          '<button type="button" class="cc-btn cc-btn-secondary cc-btn-sm" id="pg-set-loc" style="margin-left: 0.5rem;">Set location</button></span>' +
+        '</div>';
+      document.getElementById('pg-set-loc').addEventListener('click', function () {
+        /* Re-render once the location modal closes. */
+        var obs = new MutationObserver(function () {
+          if (!document.querySelector('[data-modal]')) { obs.disconnect(); load(true); }
+        });
+        obs.observe(document.body, { childList: true });
+        CC.openLocationModal();
+      });
+    }
+
+    function filtered() {
+      var list = posts.slice();
+      if (activeTab === 'nearby') {
+        var city = locCity();
+        if (city) {
+          list = list.filter(function (po) {
+            var s = shopMap[po.shop_id];
+            return s && cityMatches(s.city, city);
+          });
+        }
+      } else if (activeTab === 'following') {
+        list = list.filter(function (po) { return followedSet[po.shop_id]; });
+      }
+      return list;
+    }
+
+    function emptyForTab() {
+      if (activeTab === 'following' && !uid) return CC5.loginWall('see posts from shops you follow');
+      if (activeTab === 'following') {
+        return CC.states.empty({
+          icon: 'heart',
+          title: 'Follow shops to fill this feed',
+          body: 'When you follow a shop, their latest posts will show up here.',
+          actionLabel: 'Explore shops',
+          actionHref: 'explore.html'
+        });
+      }
+      return CC.states.empty({
+        icon: 'message',
+        title: 'No posts here yet',
+        body: activeTab === 'nearby'
+          ? 'No posts from your area yet — try the Nationwide feed.'
+          : 'No posts yet. Sellers share updates, specials, and menus here.',
+        actionLabel: activeTab === 'nearby' ? 'View Nationwide' : 'Explore the marketplace',
+        actionHref: activeTab === 'nearby' ? '#' : 'explore.html'
+      });
+    }
+
+    function render(reset) {
+      renderLocNote();
+      var list = filtered();
+      if (!list.length) {
+        postsEl.innerHTML = emptyForTab();
+        if (activeTab === 'nearby' && !list.length) {
+          var a = postsEl.querySelector('.cc-empty-actions a[href="#"]');
+          if (a) a.addEventListener('click', function (e) { e.preventDefault(); setTab('nationwide'); });
+        }
+        return;
+      }
+      var html = list.map(function (po) {
+        return CC5.postCard(po, shopMap[po.shop_id], {
+          liked: !!likedSet[po.id],
+          following: !!followedSet[po.shop_id],
+          isOwner: !!(uid && po.author_id === uid),
+          product: productMap[po.product_id] || null
+        });
+      }).join('');
+      if (!done) {
+        html += '<div class="cc5-loadmore"><button type="button" class="cc-btn cc-btn-outline" id="pg-more">Load more</button></div>';
+      }
+      postsEl.innerHTML = html;
+      var more = document.getElementById('pg-more');
+      if (more) more.addEventListener('click', function () { page++; load(false); });
+    }
+
+    function load(reset) {
+      if (loading) return;
+      if (reset) { page = 0; done = false; posts = []; }
+      loading = true;
+      if (reset) postsEl.innerHTML = CC.states.skeletonCards(3);
+
+      CC.sb.from('cc_posts')
+        .select('id,shop_id,author_id,body,photos,product_id,kind,like_count,created_at')
+        .order('created_at', { ascending: false })
+        .range(page * PAGE, (page + 1) * PAGE - 1)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var rows = r.data || [];
+          if (rows.length < PAGE) done = true;
+          if (reset) posts = rows; else posts = posts.concat(rows);
+
+          var shopIds = [], productIds = [];
+          posts.forEach(function (po) {
+            if (shopIds.indexOf(po.shop_id) === -1) shopIds.push(po.shop_id);
+            if (po.product_id && productIds.indexOf(po.product_id) === -1) productIds.push(po.product_id);
+          });
+
+          var jobs = [];
+          if (shopIds.length) {
+            jobs.push(CC.sb.from('cc_shops_public').select('id,name,city,state,logo_url').in('id', shopIds)
+              .then(function (sr) { (sr.data || []).forEach(function (s) { shopMap[s.id] = s; }); }));
+          }
+          if (productIds.length) {
+            jobs.push(CC.sb.from('cc_products').select('id,name,price_cents,portion').in('id', productIds)
+              .then(function (pr) { (pr.data || []).forEach(function (p) { productMap[p.id] = p; }); }));
+          }
+          if (uid) {
+            var pids = posts.map(function (po) { return po.id; });
+            if (pids.length) {
+              jobs.push(CC.sb.from('cc_likes').select('post_id').eq('user_id', uid).in('post_id', pids)
+                .then(function (lr) { (lr.data || []).forEach(function (x) { likedSet[x.post_id] = true; }); }));
+            }
+            if (shopIds.length) {
+              jobs.push(CC.sb.from('cc_follows').select('shop_id').eq('follower_id', uid).in('shop_id', shopIds)
+                .then(function (fr) { (fr.data || []).forEach(function (x) { followedSet[x.shop_id] = true; }); }));
+            }
+          }
+          return Promise.all(jobs);
+        })
+        .then(function () { loading = false; render(reset); })
+        .catch(function (err) {
+          loading = false;
+          postsEl.innerHTML = CC.states.error({
+            title: 'Could not load the feed',
+            body: (err && err.message) || 'Check your connection and try again.'
+          });
+        });
+    }
+
+    setTab('nearby');
+  }
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

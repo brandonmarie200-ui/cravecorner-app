@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 260" role="img" aria-label="CraveCorner logo">
+<title>CraveCorner</title>
+<defs>
+    <mask id="cc-bite-v2" maskUnits="userSpaceOnUse" x="0" y="0" width="480" height="260">
+      <rect width="480" height="260" fill="#fff"/>
+      <circle cx="188" cy="64" r="13" fill="#000"/>
+      <circle cx="204" cy="71" r="13" fill="#000"/>
+      <circle cx="218" cy="81" r="13" fill="#000"/>
+    </mask>
+</defs>
+<rect width="480" height="260" fill="#FFF9F3"/>
+<g mask="url(#cc-bite-v2)">
+  <path d="M183,68.5 A78 78 0 1 0 183,191.5" fill="none" stroke="#F45B83" stroke-width="46" stroke-linecap="round"/>
+</g>
+<path d="M378,68.5 A78 78 0 1 0 378,191.5" fill="none" stroke="#F45B83" stroke-width="46" stroke-linecap="round"/>
+<text x="245" y="152" text-anchor="middle" font-family="'Dancing Script','Segoe Script',cursive" font-weight="700" font-size="76" fill="#342B32" stroke="#FFF9F3" stroke-width="10" paint-order="stroke" stroke-linejoin="round">Crave Corner</text>
+</svg>

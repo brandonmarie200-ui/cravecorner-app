@@ -1,0 +1,78 @@
+# Build an UNSIGNED iOS .ipa for Sideloadly (no Mac, no $99 Apple Developer fee).
+#
+# How to use:
+#   1. Push this project to a GitHub repo (public = free macOS minutes; private works too).
+#   2. Repo -> Actions -> "iOS sideload build" -> Run workflow.
+#   3. Download the `CraveCorner-unsigned-ipa` artifact, unzip it, take the .ipa.
+#   4. On your Windows laptop: install Sideloadly (sideloadly.io), plug in your
+#      iPhone over USB, drop the .ipa in, sign in with your FREE Apple ID.
+#   5. On the iPhone: Settings -> General -> VPN & Device Management -> trust the
+#      profile; enable Developer Mode if prompted (Settings -> Privacy & Security).
+#
+# Limits of the free path (honest): apps signed with a free Apple ID expire after
+# 7 days and need a weekly re-sideload; native PUSH notifications do NOT work on
+# free-signed builds (needs the paid Developer account). Everything else — the
+# real app icon, splash screen, fullscreen feel, haptics, camera, GPS — works.
+# When she pays the $99 later, the same project builds for TestFlight/App Store.
+
+name: iOS sideload build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install JS deps and sync Capacitor
+        run: |
+          npm ci
+          npx cap sync ios
+
+      - name: Pick newest Xcode
+        run: |
+          ls /Applications | grep -E '^Xcode.*\.app$'
+          XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Build unsigned .app (device, Release)
+        working-directory: ios/App
+        run: |
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Package unsigned .ipa
+        run: |
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos" -maxdepth 1 -name "*.app" | head -1)
+          echo "App bundle: $APP_PATH"
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
+          zip -qr CraveCorner-unsigned.ipa Payload
+
+      - name: Upload unsigned .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: CraveCorner-unsigned-ipa
+          path: ${{ runner.temp }}/CraveCorner-unsigned.ipa
+          retention-days: 7

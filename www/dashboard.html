@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="Your CraveCorner seller dashboard — products, requests, and shop stats.">
+<title>Seller dashboard — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  /* Dashboard layout — design-system tokens only. */
+  .db-wrap { display: grid; gap: var(--cc-space-5); }
+  .db-nav { display: flex; gap: var(--cc-space-2); overflow-x: auto; padding-bottom: var(--cc-space-2); -webkit-overflow-scrolling: touch; }
+  .db-nav-btn {
+    flex: none; display: inline-flex; align-items: center; gap: var(--cc-space-2);
+    min-height: 44px; padding: 0.5rem 1rem; border-radius: var(--cc-radius-pill);
+    border: 1.5px solid var(--cc-border); background: var(--cc-white);
+    font-weight: 600; font-size: var(--cc-text-sm); color: var(--cc-cocoa-soft); cursor: pointer;
+    white-space: nowrap;
+  }
+  .db-nav-btn svg { width: 18px; height: 18px; }
+  .db-nav-btn[aria-current="page"] { background: var(--cc-pink-deep); border-color: var(--cc-pink-deep); color: #fff; }
+  .db-nav-btn:focus-visible { outline: 3px solid rgba(211,49,92,.35); outline-offset: 2px; }
+  .db-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--cc-space-3); }
+  .db-stat { background: var(--cc-white); border: 1.5px solid var(--cc-border); border-radius: var(--cc-radius-md); padding: var(--cc-space-4); }
+  .db-stat-num { font-family: "Plus Jakarta Sans", sans-serif; font-weight: 800; font-size: 1.75rem; color: var(--cc-cocoa); line-height: 1.1; }
+  .db-stat-label { font-size: var(--cc-text-sm); color: var(--cc-cocoa-soft); font-weight: 600; margin-top: 2px; }
+  .db-actions { display: flex; gap: var(--cc-space-2); flex-wrap: wrap; }
+  @media (min-width: 900px) {
+    .db-wrap { grid-template-columns: 220px 1fr; align-items: start; }
+    .db-nav { flex-direction: column; overflow: visible; position: sticky; top: var(--cc-space-5); }
+    .db-nav-btn { justify-content: flex-start; width: 100%; border-radius: var(--cc-radius-md); }
+  }
+</style>
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div class="cc-section">
+      <div id="pg-db-root">
+        <div class="cc-card"><p class="cc-muted">Loading your dashboard…</p></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/cc-auth.js"></script>
+<script src="assets/js/cc-products.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* Shared chrome (header/footer/demo banner) is rendered by
+     assets/js/app.js on DOMContentLoaded — set the active nav
+     before that fires. */
+  window.CC_ACTIVE_NAV = 'profile';
+
+  var root = document.getElementById('pg-db-root');
+  var CC = window.CC;
+  var Auth = CC.Auth;
+  var esc = Auth.escapeHtml;
+
+  var NAV = [
+    { id: 'overview', label: 'Overview', icon: 'home' },
+    { id: 'products', label: 'My Products', icon: 'shopping-bag' },
+    { id: 'orders', label: 'Order requests', icon: 'clipboard',
+      link: 'orders.html', linkLabel: 'Open order requests',
+      body: 'Incoming order requests, quotes, and custom orders live here — accept, decline, and track them through pickup or delivery.' },
+    { id: 'messages', label: 'Messages', icon: 'message',
+      link: 'messages.html', linkLabel: 'Open messages',
+      body: 'Customer conversations live here — answer questions, send quotes, and share order updates.' },
+    { id: 'inventory', label: 'Menus & inventory', icon: 'calendar',
+      link: 'menu.html', linkLabel: 'Open menus & inventory',
+      body: 'Weekly menus, availability windows, and inventory live here — set what\u2019s available and when.' },
+    { id: 'posts', label: 'Posts', icon: 'compass',
+      link: 'community.html', linkLabel: 'View community feed',
+      body: 'Shop posts (updates, specials, new menu items) live on the community feed — share them with the + create button.' },
+    { id: 'reviews', label: 'Reviews', icon: 'star',
+      link: null, linkLabel: 'View storefront reviews',
+      body: 'Reviews only come from completed orders — never fabricated. Read and respond to yours on your storefront.' },
+    { id: 'settings', label: 'Shop settings', icon: 'settings' }
+  ];
+
+  var ctx = { shop: null, categories: [], sections: [], section: 'overview' };
+
+  function hydrateIcons(scope) {
+    var slots = scope.querySelectorAll('[data-icon]');
+    for (var i = 0; i < slots.length; i++) {
+      (function (el) {
+        var tmp = document.createElement('span');
+        tmp.innerHTML = CC.icon(el.getAttribute('data-icon'));
+        if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+      })(slots[i]);
+    }
+  }
+
+  function renderShell() {
+    var s = ctx.shop;
+    var statusLabel = Auth.SHOP_STATUS_LABELS[s.status] || s.status;
+    var navHtml = NAV.map(function (n) {
+      return '<button type="button" class="db-nav-btn" data-sec="' + n.id + '"' +
+        (ctx.section === n.id ? ' aria-current="page"' : '') + '>' +
+        CC.icon(n.icon) + '<span>' + esc(n.label) + '</span></button>';
+    }).join('');
+
+    root.innerHTML =
+      '<p class="cc-eyebrow">Seller dashboard</p>' +
+      '<div style="display:flex; align-items:center; gap:var(--cc-space-3); flex-wrap:wrap; margin-bottom:var(--cc-space-4);">' +
+      '<h1 class="cc-h1" style="margin:0;">' + esc(s.name) + '</h1>' +
+      '<span class="cc-badge">' + esc(statusLabel) + '</span></div>' +
+      (s.status === 'pending'
+        ? '<div class="cc-alert cc-alert-info" role="status" style="margin-bottom:var(--cc-space-4);">' + CC.icon('shield') +
+          '<div>Your shop is <strong>pending review</strong>. You can keep editing your menu while you wait.</div></div>'
+        : s.status === 'rejected'
+        ? '<div class="cc-alert cc-alert-warn" role="alert" style="margin-bottom:var(--cc-space-4);">' + CC.icon('warning') +
+          '<div><strong>Needs corrections:</strong> ' + esc(s.rejection_reason || 'see details from the admin team.') +
+          ' <a href="onboarding.html">Continue setup</a>.</div></div>'
+        : '') +
+      '<div class="db-wrap"><nav class="db-nav" aria-label="Dashboard sections">' + navHtml + '</nav>' +
+      '<div id="db-panel" aria-live="polite"></div></div>';
+
+    hydrateIcons(root);
+    var btns = root.querySelectorAll('[data-sec]');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].addEventListener('click', function () {
+        ctx.section = this.getAttribute('data-sec');
+        renderShell();
+        document.getElementById('db-panel').scrollIntoView({ block: 'start', behavior: 'smooth' });
+      });
+    }
+    renderSection();
+  }
+
+  function renderSection() {
+    var panel = document.getElementById('db-panel');
+    var sec = NAV.filter(function (n) { return n.id === ctx.section; })[0];
+    if (sec && (sec.link || sec.body)) {
+      var href = sec.link || ('shop.html?slug=' + encodeURIComponent(ctx.shop.slug));
+      panel.innerHTML = '<div class="cc-card"><div class="cc-empty">' +
+        '<div class="cc-empty-art">' + CC.icon(sec.icon) + '</div>' +
+        '<p class="cc-empty-title">' + esc(sec.label) + '</p>' +
+        '<p class="cc-empty-text">' + esc(sec.body) + '</p>' +
+        '<div class="cc-empty-actions"><a class="cc-btn cc-btn-primary" href="' + esc(href) + '">' + esc(sec.linkLabel) + '</a></div>' +
+        '</div></div>';
+      hydrateIcons(panel);
+      return;
+    }
+    if (ctx.section === 'products') { renderProducts(panel); return; }
+    if (ctx.section === 'settings') { renderSettings(panel); return; }
+    renderOverview(panel);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Overview — every number below is a real DB count. No revenue:       */
+  /* payments are arranged off-platform and never tracked here.           */
+  /* ------------------------------------------------------------------ */
+  function renderOverview(panel) {
+    panel.innerHTML = '<div class="db-stats" aria-busy="true">' +
+      ['New requests', 'Unread messages', 'Active products', 'Shop views', 'Followers'].map(function (l) {
+        return '<div class="db-stat"><div class="db-stat-num">…</div><div class="db-stat-label">' + l + '</div></div>';
+      }).join('') + '</div>' +
+      '<div class="db-actions" style="margin: var(--cc-space-5) 0;">' +
+      '<button type="button" class="cc-btn cc-btn-primary" id="db-add-product">' + CC.icon('plus') + ' Add product</button>' +
+      '<a class="cc-btn cc-btn-outline" href="onboarding.html">' + CC.icon('edit') + ' Edit shop</a>' +
+      (ctx.shop.status === 'published'
+        ? '<a class="cc-btn cc-btn-outline" href="shop.html?slug=' + esc(ctx.shop.slug) + '">' + CC.icon('store') + ' View storefront</a>'
+        : '<a class="cc-btn cc-btn-outline" href="onboarding.html">Continue setup</a>') +
+      '</div>' +
+      '<div id="db-recent"></div>';
+    hydrateIcons(panel);
+
+    document.getElementById('db-add-product').addEventListener('click', function () {
+      ctx.section = 'products'; ctx.newProduct = true; renderShell();
+    });
+
+    var shopId = ctx.shop.id;
+    var nums = panel.querySelectorAll('.db-stat-num');
+
+    var pRequests = CC.sb.from('cc_order_requests').select('id', { count: 'exact', head: true })
+      .eq('shop_id', shopId).eq('status', 'pending')
+      .then(function (r) { return r.error ? 0 : (r.count || 0); });
+    var pMessages = CC.sb.from('cc_conversations').select('id').eq('seller_id', CC.user.id)
+      .then(function (r) {
+        if (r.error || !r.data || !r.data.length) return 0;
+        var ids = r.data.map(function (c) { return c.id; });
+        return CC.sb.from('cc_messages').select('id', { count: 'exact', head: true })
+          .in('conversation_id', ids).neq('sender_id', CC.user.id).is('read_at', null)
+          .then(function (r2) { return r2.error ? 0 : (r2.count || 0); });
+      });
+    var pProducts = CC.sb.from('cc_products').select('id', { count: 'exact', head: true })
+      .eq('shop_id', shopId).eq('status', 'active')
+      .then(function (r) { return r.error ? 0 : (r.count || 0); });
+    var pFollowers = CC.sb.from('cc_follows').select('shop_id', { count: 'exact', head: true })
+      .eq('shop_id', shopId)
+      .then(function (r) { return r.error ? 0 : (r.count || 0); });
+    var pRecent = CC.sb.from('cc_order_requests')
+      .select('id, qty, subtotal_cents, fulfillment, status, created_at, cc_products(name)')
+      .eq('shop_id', shopId).order('created_at', { ascending: false }).limit(5)
+      .then(function (r) { return r.error ? [] : (r.data || []); });
+
+    Promise.all([pRequests, pMessages, pProducts, pFollowers, pRecent]).then(function (all) {
+      var values = [all[0], all[1], all[2], ctx.shop.view_count || 0, all[3]];
+      for (var i = 0; i < nums.length && i < values.length; i++) nums[i].textContent = values[i];
+      panel.querySelector('.db-stats').setAttribute('aria-busy', 'false');
+      renderRecent(panel, all[4]);
+    }).catch(function () {
+      panel.querySelector('.db-stats').setAttribute('aria-busy', 'false');
+    });
+  }
+
+  function renderRecent(panel, requests) {
+    var box = document.getElementById('db-recent');
+    if (!box) return;
+    var html = '<h2 class="cc-h2">Latest order requests</h2>';
+    if (!requests.length) {
+      html += CC.states.empty({
+        icon: 'clipboard', title: 'No order requests yet',
+        body: 'When customers request your food, they\u2019ll show up here.'
+      });
+    } else {
+      html += '<div style="display:grid; gap:var(--cc-space-3);">' + requests.map(function (o) {
+        var name = (o.cc_products && o.cc_products.name) || 'Product';
+        return '<div class="cc-card" style="padding:var(--cc-space-3); display:flex; justify-content:space-between; gap:var(--cc-space-3); align-items:center;">' +
+          '<div><p style="font-weight:700; margin:0;">' + esc(name) + ' × ' + o.qty + '</p>' +
+          '<p class="cc-small cc-muted" style="margin:0;">' + esc(CC.centsToPrice(o.subtotal_cents)) + ' · ' + esc(o.fulfillment || '') + ' · ' + esc(new Date(o.created_at).toLocaleDateString()) + '</p></div>' +
+          '<span class="cc-badge">' + esc(o.status) + '</span></div>';
+      }).join('') + '</div>' +
+        '<p style="margin-top:var(--cc-space-3);"><a class="cc-btn cc-btn-outline cc-btn-sm" href="orders.html">Manage order requests</a></p>';
+    }
+    box.innerHTML = html;
+    hydrateIcons(box);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* My Products                                                          */
+  /* ------------------------------------------------------------------ */
+  function renderProducts(panel) {
+    panel.innerHTML =
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:var(--cc-space-3); margin-bottom:var(--cc-space-4); flex-wrap:wrap;">' +
+      '<h2 class="cc-h2" style="margin:0;">My Products</h2>' +
+      '<button type="button" class="cc-btn cc-btn-primary cc-btn-sm" id="db-new">' + CC.icon('plus') + ' New product</button></div>' +
+      '<div id="db-prod-list"><p class="cc-muted">Loading products…</p></div>' +
+      '<div id="db-prod-editor" style="margin-top:var(--cc-space-5);"></div>';
+    hydrateIcons(panel);
+
+    var listBox = document.getElementById('db-prod-list');
+    var editorBox = document.getElementById('db-prod-editor');
+
+    function reload() {
+      listBox.innerHTML = '<p class="cc-muted">Loading products…</p>';
+      return CC.Products.listWithCovers(ctx.shop.id).then(function (products) {
+        CC.Products.renderList(listBox, products, {
+          onEdit: function (id) { openEditor(id); },
+          onChanged: reload
+        });
+      }).catch(function (err) {
+        listBox.innerHTML = CC.states.error({ body: err.message });
+        hydrateIcons(listBox);
+      });
+    }
+
+    function openEditor(productId) {
+      editorBox.innerHTML = '<div class="cc-card"><p class="cc-muted">Loading editor…</p></div>';
+      editorBox.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      CC.Products.openEditor(editorBox, {
+        shopId: ctx.shop.id,
+        productId: productId || null,
+        categories: ctx.categories,
+        sections: ctx.sections,
+        onSaved: function () { editorBox.innerHTML = ''; reload(); },
+        onCancel: function () { editorBox.innerHTML = ''; }
+      });
+    }
+
+    document.getElementById('db-new').addEventListener('click', function () { openEditor(null); });
+    if (ctx.newProduct) { ctx.newProduct = false; openEditor(null); }
+    reload();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Shop settings — links back into onboarding (edit mode)               */
+  /* ------------------------------------------------------------------ */
+  function renderSettings(panel) {
+    var s = ctx.shop;
+    panel.innerHTML = '<h2 class="cc-h2">Shop settings</h2>' +
+      '<div class="cc-card" style="margin-bottom:var(--cc-space-4);">' +
+      '<h3 class="cc-h3">Shop profile</h3>' +
+      '<p class="cc-muted">Name, logo, banner, location, fulfillment, hours, and business info.</p>' +
+      '<a class="cc-btn cc-btn-secondary" href="onboarding.html">' + CC.icon('edit') + ' Edit shop info</a></div>' +
+      '<div class="cc-card" style="margin-bottom:var(--cc-space-4);">' +
+      '<h3 class="cc-h3">Your account</h3>' +
+      '<p class="cc-muted">Display name, avatar, location, bio, and privacy controls.</p>' +
+      '<a class="cc-btn cc-btn-secondary" href="profile.html">' + CC.icon('user') + ' Edit profile</a></div>' +
+      '<div class="cc-card">' +
+      '<h3 class="cc-h3">Storefront</h3>' +
+      '<p class="cc-muted">Status: <strong>' + esc(Auth.SHOP_STATUS_LABELS[s.status] || s.status) + '</strong>' +
+      (s.status === 'published' ? ' — your shop is live.' : ' — not public yet.') + '</p>' +
+      (s.status === 'published'
+        ? '<a class="cc-btn cc-btn-secondary" href="shop.html?slug=' + esc(s.slug) + '">' + CC.icon('store') + ' View storefront</a>'
+        : '<a class="cc-btn cc-btn-secondary" href="onboarding.html">Continue setup</a>') +
+      '</div>';
+    hydrateIcons(panel);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Boot                                                                 */
+  /* ------------------------------------------------------------------ */
+  function renderNotLive() {
+    root.innerHTML = '<div class="cc-card"><div class="cc-empty">' +
+      '<div class="cc-empty-art">' + CC.icon('store') + '</div>' +
+      '<p class="cc-eyebrow">Seller dashboard isn\u2019t open yet</p>' +
+      '<p class="cc-empty-title">Dashboards launch with the backend</p>' +
+      '<p class="cc-empty-text">CraveCorner\u2019s database isn\u2019t connected yet, so there\u2019s nothing to manage right now.</p>' +
+      '<div class="cc-empty-actions"><a class="cc-btn cc-btn-secondary" href="explore.html">Explore the marketplace</a></div>' +
+      '</div></div>';
+    hydrateIcons(root);
+  }
+
+  Auth.requireAuth('dashboard.html').then(function (r) {
+    if (r.redirected || !r.live) { if (!r.live && !r.redirected) renderNotLive(); return; }
+    return Auth.getMyShop().then(function (shop) {
+      if (!shop) {
+        root.innerHTML = '<div class="cc-card"><div class="cc-empty">' +
+          '<div class="cc-empty-art">' + CC.icon('store') + '</div>' +
+          '<p class="cc-empty-title">You don\u2019t have a shop yet</p>' +
+          '<p class="cc-empty-text">Open your shop first — it takes about 6 steps — then this dashboard is yours.</p>' +
+          '<div class="cc-empty-actions"><a class="cc-btn cc-btn-primary" href="onboarding.html">Become a seller</a></div>' +
+          '</div></div>';
+        hydrateIcons(root);
+        return;
+      }
+      ctx.shop = shop;
+      return Auth.loadCategories().then(function (cats) {
+        ctx.categories = cats;
+        return CC.sb.from('cc_menu_sections').select('*').eq('shop_id', shop.id).order('position');
+      }).then(function (rs) {
+        ctx.sections = rs.error ? [] : (rs.data || []);
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('section') === 'products') ctx.section = 'products';
+        renderShell();
+      });
+    });
+  }).catch(function (err) {
+    root.innerHTML = '<div class="cc-card">' + CC.states.error({ body: (err && err.message) || '' }) + '</div>';
+    hydrateIcons(root);
+  });
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

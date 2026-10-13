@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="Your CraveCorner profile — edit your account, privacy, and seller settings.">
+<title>Profile — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+<!-- Stage 5: live profile components (additive — no Stage 1 styles changed) -->
+<link rel="stylesheet" href="assets/css/cc-stage5.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div class="pg-head">
+      <h1>Profile</h1>
+    </div>
+    <div id="pg-profile-root">
+      <div class="cc-section"><p class="cc-muted">Loading…</p></div>
+    </div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/cc-auth.js"></script>
+<!-- Stage 5: shared live helpers for favorites/following tabs (no-ops when not live) -->
+<script src="assets/js/cc-community.js"></script>
+<script src="assets/js/app.js"></script>
+<!-- STAGE 4: notification bell badge + dropdown (hooks the header; app.js untouched) -->
+<script src="assets/js/cc-notify.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* Shared chrome (header/footer/demo banner) is rendered by
+     assets/js/app.js on DOMContentLoaded — set the active nav
+     before that fires. */
+  window.CC_ACTIVE_NAV = 'profile';
+
+  var root = document.getElementById('pg-profile-root');
+  var CC = window.CC;
+  var Auth = CC.Auth;
+  var esc = Auth.escapeHtml;
+  var D = window.CC_DEMO;
+
+  function fatal(msg) {
+    root.innerHTML = '<div class="cc-section"><div class="cc-alert cc-alert-danger" role="alert">' + esc(msg) + '</div></div>';
+  }
+  if (!CC || !D) {
+    fatal('CraveCorner could not load. Check your connection and reload the page.');
+    return;
+  }
+
+  function hydrateIcons(scope) {
+    var slots = scope.querySelectorAll('[data-icon]');
+    for (var i = 0; i < slots.length; i++) {
+      (function (el) {
+        var tmp = document.createElement('span');
+        tmp.innerHTML = CC.icon(el.getAttribute('data-icon'));
+        if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+      })(slots[i]);
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Saved items (this device) — carried over from Stage 1; works in both
+     demo and live mode since saves are local until accounts sync them.   */
+  /* ------------------------------------------------------------------ */
+  function savedItemsHtml() {
+    var savedProducts = (D.PRODUCTS || []).filter(function (p) {
+      try { return CC.isSaved('product', p.id); } catch (e) { return false; }
+    });
+    var savedPosts = (D.POSTS || []).filter(function (po) {
+      try { return CC.isSaved('post', po.id); } catch (e) { return false; }
+    });
+    var html = '<div class="pg-saved-section"><h2>Your saved items <span class="cc-caption">(on this device)</span></h2><div id="pg-saved">';
+    if (!savedProducts.length && !savedPosts.length) {
+      html += CC.states.empty({
+        icon: 'heart',
+        title: 'No saved items yet',
+        body: 'Tap the heart on any dish or post to save it here.',
+        actionLabel: 'Explore the marketplace',
+        actionHref: 'explore.html'
+      });
+    } else {
+      if (savedProducts.length) {
+        html += '<h3 class="cc-h3" style="margin-bottom: var(--cc-space-3);">Dishes (' + savedProducts.length + ')</h3>' +
+          '<div class="cc-grid-products" style="margin-bottom: var(--cc-space-6);">' +
+          savedProducts.map(function (p) { return CC.productCard(p); }).join('') + '</div>';
+      }
+      if (savedPosts.length) {
+        html += '<h3 class="cc-h3" style="margin-bottom: var(--cc-space-3);">Posts (' + savedPosts.length + ')</h3>' +
+          '<div class="pg-posts">' + savedPosts.map(function (po) { return CC.postCard(po); }).join('') + '</div>';
+      }
+    }
+    return html + '</div></div>';
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Demo mode: honest "accounts need the backend" + saved items.         */
+  /* ------------------------------------------------------------------ */
+  function renderDemo() {
+    root.innerHTML = '<div class="cc-section">' +
+      '<div class="cc-empty">' +
+      '<div class="cc-empty-art"><span data-icon="user" aria-hidden="true"></span></div>' +
+      '<p class="cc-eyebrow">Accounts aren\u2019t open yet</p>' +
+      '<h2 class="cc-empty-title">Sign-ups launch with the backend</h2>' +
+      '<p class="cc-empty-text">CraveCorner\u2019s database isn\u2019t connected yet, so profiles can\u2019t be created right now. ' +
+      'When accounts launch, this page keeps everything in one place: favorites, follows, order requests, and your seller dashboard.</p>' +
+      '</div>' + savedItemsHtml() + '</div>';
+    hydrateIcons(root);
+    CC.refreshSaveUI(root);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Logged out (live): prompt to log in + saved items.                  */
+  /* ------------------------------------------------------------------ */
+  function renderLoggedOut() {
+    root.innerHTML = '<div class="cc-section">' +
+      '<div class="cc-card" style="text-align:center; padding: var(--cc-space-8) var(--cc-space-5);">' +
+      '<div class="cc-empty-art" style="margin-bottom: var(--cc-space-4);"><span data-icon="user" aria-hidden="true"></span></div>' +
+      '<h2 class="cc-h2">Log in to see your profile</h2>' +
+      '<p class="cc-muted">Your favorites, follows, order requests, and seller tools live here once you\u2019re signed in.</p>' +
+      '<div class="cc-empty-actions" style="justify-content:center;">' +
+      '<a class="cc-btn cc-btn-primary" href="auth.html?next=profile.html">Log in / Sign up</a>' +
+      '</div></div>' + savedItemsHtml() + '</div>';
+    hydrateIcons(root);
+    CC.refreshSaveUI(root);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Logged in (live): profile editor, privacy, seller, danger zone.     */
+  /* ------------------------------------------------------------------ */
+  function renderLoggedIn(profile) {
+    var avatarUrl = profile.avatar_url ? CC.imgUrl('cc-shop-images', profile.avatar_url) : null;
+    var sellerHref = 'onboarding.html';
+    var sellerCta = '<a class="cc-btn cc-btn-primary" href="onboarding.html">Become a seller</a>' +
+      '<p class="cc-hint" style="margin-top:var(--cc-space-2);">Open your own storefront in about 6 steps.</p>';
+    var shop = null;
+
+    function sellerBlock() {
+      return Auth.getMyShop().then(function (s) {
+        shop = s;
+        var box = document.getElementById('pg-seller-box');
+        if (!box) return;
+        if (shop) {
+          var statusLabel = Auth.SHOP_STATUS_LABELS[shop.status] || shop.status;
+          box.innerHTML =
+            '<div class="cc-card" style="margin-bottom: var(--cc-space-4);">' +
+            '<h2 class="cc-h2">Your shop</h2>' +
+            '<p><strong>' + esc(shop.name) + '</strong> <span class="cc-badge">' + esc(statusLabel) + '</span></p>' +
+            '<p class="cc-hint">Status: ' + esc(shop.status) + '. ' +
+            (shop.status === 'pending' ? 'Your shop is under review — we\u2019ll take it from here.' :
+             shop.status === 'published' ? 'Your shop is live on the marketplace.' :
+             shop.status === 'rejected' ? 'Needs corrections: ' + esc(shop.rejection_reason || 'see your email for details.') :
+             'Finish your shop setup to submit it for review.') + '</p>' +
+            '<div class="cc-empty-actions" style="justify-content:flex-start;">' +
+            '<a class="cc-btn cc-btn-secondary" href="dashboard.html">Open dashboard</a>' +
+            (shop.status === 'published' ? '<a class="cc-btn cc-btn-outline" href="shop.html?slug=' + esc(shop.slug) + '">View storefront</a>'
+                                        : '<a class="cc-btn cc-btn-outline" href="onboarding.html">Continue setup</a>') +
+            '</div></div>';
+        } else {
+          box.innerHTML = '<div class="cc-card" style="margin-bottom: var(--cc-space-4);">' +
+            '<h2 class="cc-h2">Sell on CraveCorner</h2>' +
+            '<p class="cc-muted">Turn your kitchen into a neighborhood favorite.</p>' + sellerCta + '</div>';
+        }
+        hydrateIcons(box);
+      });
+    }
+
+    root.innerHTML = '<div class="cc-section">' +
+      '<div data-form-banner aria-live="polite"></div>' +
+
+      '<div class="cc-card" style="margin-bottom: var(--cc-space-5);">' +
+      '<h2 class="cc-h2">Account</h2>' +
+      '<form id="pg-profile-form" novalidate>' +
+      '<div class="cc-field"><span class="cc-label">Avatar</span>' +
+      '<div style="display:flex; align-items:center; gap: var(--cc-space-4);">' +
+      '<div id="pg-avatar-preview" style="width:72px; height:72px; border-radius:50%; overflow:hidden; background: var(--cc-pink-50); display:flex; align-items:center; justify-content:center; flex:none;">' +
+      (avatarUrl ? '<img src="' + esc(avatarUrl) + '" alt="Your avatar" style="width:100%; height:100%; object-fit:cover;">' : Auth.initialsAvatar(profile.display_name)) +
+      '</div>' +
+      '<div><label class="cc-btn cc-btn-outline cc-btn-sm" for="pg-avatar-input" style="cursor:pointer;">' + CC.icon('upload') + ' Change photo</label>' +
+      '<input type="file" id="pg-avatar-input" accept="image/*" class="pg-sr-only">' +
+      '<p class="cc-hint" style="margin-top:var(--cc-space-1);">JPG, PNG, or WebP up to 8MB.</p></div>' +
+      '</div></div>' +
+      '<div class="cc-field"><label class="cc-label" for="pf-name">Display name <span class="cc-req" aria-hidden="true">*</span></label>' +
+      '<input class="cc-input" id="pf-name" name="display_name" type="text" maxlength="60" required value="' + esc(profile.display_name || '') + '"></div>' +
+      '<div class="cc-field"><span class="cc-label">Email</span>' +
+      '<input class="cc-input" type="email" value="' + esc(CC.user.email || '') + '" disabled aria-disabled="true">' +
+      '<p class="cc-hint">Your sign-in email can\u2019t be changed here.</p></div>' +
+      '<div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--cc-space-3);">' +
+      '<div class="cc-field"><label class="cc-label" for="pf-city">City</label>' +
+      '<input class="cc-input" id="pf-city" name="city" type="text" maxlength="80" value="' + esc(profile.city || '') + '"></div>' +
+      '<div class="cc-field"><label class="cc-label" for="pf-state">State</label>' +
+      '<input class="cc-input" id="pf-state" name="state" type="text" maxlength="2" value="' + esc(profile.state || '') + '" placeholder="TX"></div>' +
+      '<div class="cc-field"><label class="cc-label" for="pf-zip">ZIP</label>' +
+      '<input class="cc-input" id="pf-zip" name="zip" type="text" maxlength="10" value="' + esc(profile.zip || '') + '"></div>' +
+      '</div>' +
+      '<div class="cc-field"><label class="cc-label" for="pf-bio">Bio</label>' +
+      '<textarea class="cc-textarea" id="pf-bio" name="bio" maxlength="500" placeholder="Tell the neighborhood a little about yourself and what you love to eat.">' + esc(profile.bio || '') + '</textarea></div>' +
+      '<button type="submit" class="cc-btn cc-btn-primary" data-submit>Save changes</button> ' +
+      '<button type="button" class="cc-btn cc-btn-ghost" id="pg-signout">Sign out</button>' +
+      '</form></div>' +
+
+      '<div class="cc-card" style="margin-bottom: var(--cc-space-5);">' +
+      '<h2 class="cc-h2">Privacy</h2>' +
+      '<form id="pg-privacy-form">' +
+      '<label class="cc-check" style="margin-bottom: var(--cc-space-3);"><input type="checkbox" id="pp-showloc" ' + (profile.show_location ? 'checked' : '') + '> <span>Show my general location on my profile</span></label>' +
+      '<p class="cc-hint" style="margin: calc(var(--cc-space-3) * -1) 0 var(--cc-space-4);">City and state only — never a street address.</p>' +
+      '<label class="cc-check" style="margin-bottom: var(--cc-space-3);"><input type="checkbox" id="pp-public" ' + (profile.is_public ? 'checked' : '') + '> <span>Make my profile visible to others</span></label>' +
+      '<p class="cc-hint" style="margin: calc(var(--cc-space-3) * -1) 0 var(--cc-space-4);">Turn off to hide your profile from public views.</p>' +
+      '<button type="submit" class="cc-btn cc-btn-secondary" data-submit>Save privacy settings</button>' +
+      '</form></div>' +
+
+      '<div class="cc-card"><h2 class="cc-h2">Notifications</h2>' +
+      '<div id="pg-push-box"><p class="cc-muted">Checking notification support…</p></div>' +
+      '</div>' +
+
+      '<div id="pg-seller-box"><div class="cc-card"><p class="cc-muted">Loading your shop…</p></div></div>' +
+
+      '<div class="cc-card" style="border-color: var(--cc-danger);">' +
+      '<h2 class="cc-h2" style="color: var(--cc-danger-ink);">Danger zone</h2>' +
+      '<p class="cc-muted">Permanently delete your profile, shop, and listings. This cannot be undone.</p>' +
+      '<div id="pg-delete-box"><button type="button" class="cc-btn cc-btn-danger" id="pg-delete">Delete my account…</button></div>' +
+      '</div>' +
+
+      savedItemsHtml() +
+      '</div>';
+
+    hydrateIcons(root);
+    CC.refreshSaveUI(root);
+
+    /* --- profile form --- */
+    var form = document.getElementById('pg-profile-form');
+    var avatarInput = document.getElementById('pg-avatar-input');
+    var avatarPreview = document.getElementById('pg-avatar-preview');
+    var pendingAvatarFile = null;
+
+    avatarInput.addEventListener('change', function () {
+      var file = avatarInput.files && avatarInput.files[0];
+      if (!file) return;
+      if (file.type.indexOf('image/') !== 0) { Auth.formError(form, 'That file is not an image.'); return; }
+      if (file.size > Auth.MAX_IMAGE_BYTES) { Auth.formError(form, 'That image is over 8MB.'); return; }
+      pendingAvatarFile = file;
+      var url = URL.createObjectURL(file);
+      avatarPreview.innerHTML = '<img src="' + esc(url) + '" alt="New avatar preview" style="width:100%; height:100%; object-fit:cover;">';
+      Auth.formSuccess(form, 'Photo selected — press "Save changes" to upload it.');
+    });
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      Auth.clearAllErrors(form);
+      var nameEl = document.getElementById('pf-name');
+      var name = nameEl.value.trim();
+      if (name.length < 2) { Auth.setFieldError(nameEl, 'Display name needs at least 2 characters.'); return; }
+      var btn = form.querySelector('[data-submit]');
+      btn.disabled = true; btn.textContent = 'Saving…';
+
+      var chain = Promise.resolve(profile.avatar_url);
+      if (pendingAvatarFile) {
+        chain = Auth.uploadImage('cc-shop-images', pendingAvatarFile, 'avatar')
+          .then(function (path) {
+            var old = profile.avatar_url;
+            profile.avatar_url = path;
+            pendingAvatarFile = null;
+            if (old && old !== path) Auth.deleteImage('cc-shop-images', old);
+            return path;
+          });
+      }
+      chain.then(function (avatarPath) {
+        var patch = {
+          display_name: name,
+          avatar_url: avatarPath,
+          city: document.getElementById('pf-city').value.trim() || null,
+          state: document.getElementById('pf-state').value.trim().toUpperCase().slice(0, 2) || null,
+          zip: document.getElementById('pf-zip').value.trim() || null,
+          bio: document.getElementById('pf-bio').value.trim() || null
+        };
+        return CC.sb.from('cc_profiles').update(patch).eq('user_id', CC.user.id).select().single();
+      }).then(function (r) {
+        if (r.error) throw r.error;
+        profile = r.data;
+        Auth.formSuccess(form, 'Profile saved.');
+      }).catch(function (err) {
+        Auth.formError(form, (err && err.message) || 'Could not save your profile. Try again.');
+      }).then(function () {
+        btn.disabled = false; btn.textContent = 'Save changes';
+      });
+    });
+
+    document.getElementById('pg-signout').addEventListener('click', function () {
+      CC.signOut().then(function () { window.location.replace('index.html'); });
+    });
+
+    /* --- privacy form --- */
+    var pform = document.getElementById('pg-privacy-form');
+    pform.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = pform.querySelector('[data-submit]');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      CC.sb.from('cc_profiles').update({
+        show_location: document.getElementById('pp-showloc').checked,
+        is_public: document.getElementById('pp-public').checked
+      }).eq('user_id', CC.user.id)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          Auth.formSuccess(pform, 'Privacy settings saved.');
+        }).catch(function (err) {
+          Auth.formError(pform, (err && err.message) || 'Could not save. Try again.');
+        }).then(function () { btn.disabled = false; btn.textContent = 'Save privacy settings'; });
+    });
+
+    /* --- push notifications --- */
+    (function initPush() {
+      var box = document.getElementById('pg-push-box');
+      if (!box) return;
+      if (!CC.push || !CC.push.supported()) {
+        box.innerHTML = '<p class="cc-muted">Push notifications need a browser with push support (Chrome, Edge, or Firefox — or Safari 16.4+ with the site added to your Home Screen).</p>';
+        return;
+      }
+      function renderPushUI(subscribed) {
+        box.innerHTML =
+          '<label class="cc-check" style="margin-bottom: var(--cc-space-3);"><input type="checkbox" id="pp-push" ' + (subscribed ? 'checked' : '') + '> <span>Get push notifications on this device</span></label>' +
+          '<p class="cc-hint" style="margin: calc(var(--cc-space-3) * -1) 0 var(--cc-space-4);">New orders, messages, and replies — even when CraveCorner isn\u2019t open.</p>' +
+          '<div id="pp-push-msg"></div>';
+        var toggle = document.getElementById('pp-push');
+        var msg = document.getElementById('pp-push-msg');
+        toggle.addEventListener('change', function () {
+          msg.innerHTML = '';
+          toggle.disabled = true;
+          var action = toggle.checked ? CC.push.subscribe() : CC.push.unsubscribe();
+          action.then(function () {
+            msg.innerHTML = '<p class="cc-success-text">' + (toggle.checked ? 'Notifications on! You\u2019ll get alerts on this device.' : 'Notifications off for this device.') + '</p>';
+          }).catch(function (err) {
+            toggle.checked = !toggle.checked;
+            msg.innerHTML = '<p class="cc-error-text" role="alert">' + CC.esc((err && err.message) || 'Could not change notification setting.') + '</p>';
+          }).then(function () { toggle.disabled = false; });
+        });
+      }
+      if (CC.push.permission() === 'denied') {
+        box.innerHTML = '<p class="cc-muted">Notifications are blocked for this site. Allow them in your browser settings to turn them on here.</p>';
+        return;
+      }
+      CC.push.getSubscription().then(function (sub) {
+        renderPushUI(!!sub);
+      }).catch(function () {
+        renderPushUI(false);
+      });
+    })();
+
+    /* --- delete account --- */
+    document.getElementById('pg-delete').addEventListener('click', function () {
+      var box = document.getElementById('pg-delete-box');
+      box.innerHTML = '<div class="cc-alert cc-alert-danger" role="alert">' +
+        CC.icon('warning') + '<div><strong>This deletes your profile, your shop, and all your listings.</strong><br>' +
+        'Your sign-in login itself can\u2019t be erased from this page — contact support to fully erase it.</div></div>' +
+        '<div class="cc-empty-actions" style="justify-content:flex-start; margin-top: var(--cc-space-3);">' +
+        '<button type="button" class="cc-btn cc-btn-danger" id="pg-delete-yes">Yes, delete everything</button>' +
+        '<button type="button" class="cc-btn cc-btn-outline" id="pg-delete-no">Keep my account</button></div>';
+      hydrateIcons(box);
+      document.getElementById('pg-delete-no').addEventListener('click', function () { renderLoggedIn(profile); });
+      document.getElementById('pg-delete-yes').addEventListener('click', function () {
+        this.disabled = true; this.textContent = 'Deleting…';
+        /* RLS allows self-delete of cc_profiles; FK cascades remove the shop,
+           products, images, options, and sections. */
+        CC.sb.from('cc_profiles').delete().eq('user_id', CC.user.id)
+          .then(function (r) {
+            if (r.error) throw r.error;
+            return CC.signOut();
+          })
+          .then(function () {
+            try { sessionStorage.setItem('cc_deleted', '1'); } catch (e) {}
+            window.location.replace('index.html');
+          })
+          .catch(function (err) {
+            Auth.formError(form, 'Could not delete your account: ' + ((err && err.message) || 'unknown error'));
+          });
+      });
+    });
+
+    sellerBlock().catch(function () {
+      var box = document.getElementById('pg-seller-box');
+      if (box) box.innerHTML = '<div class="cc-card">' + CC.states.error({ title: 'Could not load shop info' }) + '</div>';
+    });
+  }
+
+  CC.ready.then(function (r) {
+    if (!r.live) { renderDemo(); return; }
+    if (!r.user) { renderLoggedOut(); return; }
+    Auth.getProfile().then(function (profile) {
+      if (!profile) {
+        /* Session exists but no profile row (e.g. email not confirmed yet). */
+        root.innerHTML = '<div class="cc-section">' + CC.states.empty({
+          icon: 'message', title: 'Confirm your email',
+          body: 'We sent you a confirmation link. Click it, then log in to set up your profile.',
+          actionLabel: 'Go to log in', actionHref: 'auth.html?tab=login'
+        }) + '</div>';
+        hydrateIcons(root);
+        return;
+      }
+      renderLoggedIn(profile);
+    }).catch(function (err) {
+      root.innerHTML = '<div class="cc-section">' + CC.states.error({ body: (err && err.message) || '' }) + '</div>';
+      hydrateIcons(root);
+    });
+  });
+})();
+</script>
+<script>
+/* ==========================================================================
+   Stage 5 — LIVE favorites & following tabs (appended 2026-10-11; the
+   Stage 2 profile code above is untouched). When the backend is live and a
+   user is signed in, this injects a "Saved & following" card after the
+   seller box with three tabs backed by real Supabase data:
+     - Saved dishes  (cc_favorites -> cc_products; unsave supported)
+     - Saved shops   (cc_favorites -> cc_shops_public; unsave supported)
+     - Following     (cc_follows  -> cc_shops_public; unfollow supported)
+   Saved products that became unavailable stay visible with accurate status
+   chips ("Sold out" / "Paused") — they are never hidden. Favorites whose
+   product/shop rows are no longer readable render as an honest
+   "unavailable" row the user can remove.
+   When not live (or logged out), this block does nothing: the Stage 2
+   demo/logged-out profile above runs exactly as before.
+   ========================================================================== */
+(function () {
+  'use strict';
+  if (!window.CC || !window.CC5) return;
+  var CC = window.CC;
+  var CC5 = window.CC5;
+
+  CC.ready.then(function (st) {
+    if (!st.live || !st.user) return;
+    var root = document.getElementById('pg-profile-root');
+    if (!root) return;
+    /* The Stage 2 profile renders async — watch for the seller box, then
+       inject once (and re-inject if the profile re-renders). */
+    var obs = new MutationObserver(function () { maybeInject(); });
+    obs.observe(root, { childList: true, subtree: true });
+    maybeInject();
+  });
+
+  function maybeInject() {
+    if (!CC.user) return;
+    var anchor = document.getElementById('pg-seller-box');
+    if (!anchor || document.querySelector('[data-cc5-savedtabs]')) return;
+    injectCard(anchor);
+  }
+
+  var PTABS = [
+    ['products', 'Saved dishes'],
+    ['shops', 'Saved shops'],
+    ['following', 'Following']
+  ];
+
+  function injectCard(anchor) {
+    var card = document.createElement('div');
+    card.setAttribute('data-cc5-savedtabs', '1');
+    card.className = 'cc-card';
+    card.style.marginBottom = 'var(--cc-space-5)';
+    card.innerHTML =
+      '<h2 class="cc-h2">Saved &amp; following</h2>' +
+      '<p class="cc-hint" style="margin-bottom: var(--cc-space-3);">Synced with your account — available on all your devices.</p>' +
+      '<div class="pg-tabs" role="tablist" aria-label="Saved and following">' +
+        PTABS.map(function (t, i) {
+          return '<button type="button" class="pg-tab" role="tab" data-ptab="' + t[0] + '" ' +
+            'aria-selected="' + (i === 0 ? 'true' : 'false') + '">' + t[1] + ' <span class="cc-caption" data-pcount></span></button>';
+        }).join('') +
+      '</div>' +
+      '<div data-cc5p-panel role="tabpanel" aria-live="polite"></div>';
+    anchor.parentNode.insertBefore(card, anchor.nextSibling);
+
+    var panel = card.querySelector('[data-cc5p-panel]');
+    var active = 'products';
+    var counts = { products: 0, shops: 0, following: 0 };
+
+    function paintCounts() {
+      Array.prototype.forEach.call(card.querySelectorAll('[data-ptab]'), function (b) {
+        var c = card.querySelector('[data-ptab="' + b.getAttribute('data-ptab') + '"] [data-pcount]');
+        if (c) c.textContent = '(' + (counts[b.getAttribute('data-ptab')] || 0) + ')';
+      });
+    }
+
+    function setTab(name) {
+      active = name;
+      Array.prototype.forEach.call(card.querySelectorAll('[data-ptab]'), function (b) {
+        b.setAttribute('aria-selected', b.getAttribute('data-ptab') === name ? 'true' : 'false');
+      });
+      loadTab(name);
+    }
+
+    card.addEventListener('click', function (e) {
+      var t = e.target.closest('[data-ptab]');
+      if (t) { setTab(t.getAttribute('data-ptab')); return; }
+      var un = e.target.closest('[data-cc5p-unsave]');
+      if (un) { unsave(un); return; }
+      var uf = e.target.closest('[data-cc5p-unfollow]');
+      if (uf) { unfollow(uf); return; }
+    });
+
+    function unsave(btn) {
+      var parts = btn.getAttribute('data-cc5p-unsave').split(':');
+      var kind = parts[0], id = parts[1];
+      var col = kind === 'product' ? 'product_id' : 'shop_id';
+      btn.disabled = true;
+      CC.sb.from('cc_favorites').delete().eq('user_id', CC.user.id).eq(col, id)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          CC5.toast('Removed from saved.');
+          loadTab(active, true);
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          CC5.toast((err && err.message) || 'Could not remove it.');
+        });
+    }
+
+    function unfollow(btn) {
+      var id = btn.getAttribute('data-cc5p-unfollow');
+      btn.disabled = true;
+      CC.sb.from('cc_follows').delete().eq('follower_id', CC.user.id).eq('shop_id', id)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          CC5.toast('Unfollowed.');
+          loadTab(active, true);
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          CC5.toast((err && err.message) || 'Could not unfollow.');
+        });
+    }
+
+    function statusChip(status) {
+      if (status === 'sold_out') return '<span class="cc-badge cc-badge-soldout">Sold out</span>';
+      if (status === 'paused') return '<span class="cc-badge cc-badge-warn">Paused</span>';
+      if (status === 'archived') return '<span class="cc-badge">Archived</span>';
+      if (status === 'draft') return '<span class="cc-badge">Draft</span>';
+      return '';
+    }
+
+    function productRow(p, shop, imgUrl, missing) {
+      if (missing) {
+        return '<div class="cc5-saved-row"><div class="cc5-saved-info">' +
+          '<h3 class="cc-muted">A saved dish is no longer available</h3>' +
+          '<div class="cc5-saved-badges"><span class="cc-badge cc-badge-soldout">Unavailable</span></div></div>' +
+          '<button type="button" class="cc-btn cc-btn-sm cc-btn-ghost" data-cc5p-unsave="product:' + CC.esc(p) + '">Remove</button></div>';
+      }
+      var place = shop ? [shop.city, shop.state].filter(Boolean).join(', ') : '';
+      return '<div class="cc5-saved-row">' +
+        (imgUrl ? '<img class="cc5-saved-img" src="' + CC.esc(imgUrl) + '" alt="" loading="lazy">' : '') +
+        '<div class="cc5-saved-info">' +
+          '<h3><a href="product.html?id=' + CC.esc(p.id) + '">' + CC.esc(p.name) + '</a></h3>' +
+          '<div class="cc-price">' + CC.esc(CC.centsToPrice(p.price_cents)) +
+            (p.portion ? ' <small class="cc-muted">' + CC.esc(p.portion) + '</small>' : '') + '</div>' +
+          (place ? '<div class="cc5-saved-meta">' + CC.esc(place) + '</div>' : '') +
+          '<div class="cc5-saved-badges">' + statusChip(p.status) + '</div>' +
+        '</div>' +
+        '<button type="button" class="cc-btn cc-btn-sm cc-btn-outline" data-cc5p-unsave="product:' + CC.esc(p.id) + '">Unsave</button>' +
+      '</div>';
+    }
+
+    function shopRow(s, missing, idForMissing, isFollow) {
+      if (missing) {
+        return '<div class="cc5-saved-row"><div class="cc5-saved-info">' +
+          '<h3 class="cc-muted">A saved shop is no longer available</h3>' +
+          '<div class="cc5-saved-badges"><span class="cc-badge cc-badge-soldout">Unavailable</span></div></div>' +
+          '<button type="button" class="cc-btn cc-btn-sm cc-btn-ghost" data-cc5p-unsave="shop:' + CC.esc(idForMissing) + '">Remove</button></div>';
+      }
+      var logo = s.logo_url ? CC.imgUrl('cc-shop-images', s.logo_url) : null;
+      var place = [s.city, s.state].filter(Boolean).join(', ');
+      var action = isFollow
+        ? '<button type="button" class="cc-btn cc-btn-sm cc-btn-secondary" data-cc5p-unfollow="' + CC.esc(s.id) + '">Following</button>'
+        : '<button type="button" class="cc-btn cc-btn-sm cc-btn-outline" data-cc5p-unsave="shop:' + CC.esc(s.id) + '">Unsave</button>';
+      return '<div class="cc5-saved-row">' +
+        (logo ? '<img class="cc5-saved-img" src="' + CC.esc(logo) + '" alt="" loading="lazy">' : '') +
+        '<div class="cc5-saved-info">' +
+          '<h3><a href="shop.html?id=' + CC.esc(s.id) + '">' + CC.esc(s.name) + '</a></h3>' +
+          (place ? '<div class="cc5-saved-meta">' + CC.esc(place) + '</div>' : '') +
+        '</div>' + action + '</div>';
+    }
+
+    function loadTab(name, keepTab) {
+      panel.innerHTML = CC.states.skeletonCards(2);
+      if (name === 'products') loadProducts();
+      else if (name === 'shops') loadShops();
+      else loadFollowing();
+      if (keepTab) paintCounts();
+    }
+
+    function loadProducts() {
+      CC.sb.from('cc_favorites').select('product_id').eq('user_id', CC.user.id).not('product_id', 'is', null)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var ids = (r.data || []).map(function (x) { return x.product_id; });
+          counts.products = ids.length; paintCounts();
+          if (!ids.length) {
+            panel.innerHTML = CC.states.empty({ icon: 'heart', title: 'No saved dishes',
+              body: 'Tap Save on any dish to keep it here, synced across devices.',
+              actionLabel: 'Explore the marketplace', actionHref: 'explore.html' });
+            return null;
+          }
+          return CC.sb.from('cc_products').select('id,name,price_cents,portion,status,shop_id').in('id', ids)
+            .then(function (pr) {
+              if (pr.error) throw pr.error;
+              var products = pr.data || [];
+              var byId = {};
+              products.forEach(function (p) { byId[p.id] = p; });
+              var shopIds = [];
+              products.forEach(function (p) { if (shopIds.indexOf(p.shop_id) === -1) shopIds.push(p.shop_id); });
+              var jobs = [
+                shopIds.length
+                  ? CC.sb.from('cc_shops_public').select('id,name,city,state').in('id', shopIds)
+                  : Promise.resolve({ data: [] }),
+                CC.sb.from('cc_product_images').select('product_id,storage_path,is_cover,position')
+                  .in('product_id', ids).order('position')
+              ];
+              return Promise.all(jobs).then(function (res) {
+                var shopsById = {};
+                (res[0].data || []).forEach(function (s) { shopsById[s.id] = s; });
+                var imgByProduct = {};
+                (res[1].data || []).forEach(function (im) {
+                  if (!imgByProduct[im.product_id] || im.is_cover) imgByProduct[im.product_id] = im.storage_path;
+                });
+                panel.innerHTML = '<div class="cc5-saved-list">' + ids.map(function (id) {
+                  var p = byId[id];
+                  if (!p) return productRow(id, null, null, true);
+                  var img = imgByProduct[id] ? CC.imgUrl('cc-product-images', imgByProduct[id]) : null;
+                  return productRow(p, shopsById[p.shop_id], img, false);
+                }).join('') + '</div>';
+              });
+            });
+        })
+        .catch(function (err) {
+          panel.innerHTML = CC.states.error({ title: 'Could not load saved dishes', body: (err && err.message) || '' });
+        });
+    }
+
+    function loadShops() {
+      CC.sb.from('cc_favorites').select('shop_id').eq('user_id', CC.user.id).not('shop_id', 'is', null)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var ids = (r.data || []).map(function (x) { return x.shop_id; });
+          counts.shops = ids.length; paintCounts();
+          if (!ids.length) {
+            panel.innerHTML = CC.states.empty({ icon: 'store', title: 'No saved shops',
+              body: 'Save a shop to find it here later.',
+              actionLabel: 'Explore shops', actionHref: 'explore.html' });
+            return;
+          }
+          return CC.sb.from('cc_shops_public').select('id,name,city,state,logo_url').in('id', ids)
+            .then(function (sr) {
+              if (sr.error) throw sr.error;
+              var byId = {};
+              (sr.data || []).forEach(function (s) { byId[s.id] = s; });
+              panel.innerHTML = '<div class="cc5-saved-list">' + ids.map(function (id) {
+                var s = byId[id];
+                return shopRow(s, !s, id, false);
+              }).join('') + '</div>';
+            });
+        })
+        .catch(function (err) {
+          panel.innerHTML = CC.states.error({ title: 'Could not load saved shops', body: (err && err.message) || '' });
+        });
+    }
+
+    function loadFollowing() {
+      CC.sb.from('cc_follows').select('shop_id').eq('follower_id', CC.user.id).order('created_at', { ascending: false })
+        .then(function (r) {
+          if (r.error) throw r.error;
+          var ids = (r.data || []).map(function (x) { return x.shop_id; });
+          counts.following = ids.length; paintCounts();
+          if (!ids.length) {
+            panel.innerHTML = CC.states.empty({ icon: 'heart', title: 'Not following anyone yet',
+              body: 'Follow shops to see their posts in your Community feed.',
+              actionLabel: 'Explore shops', actionHref: 'explore.html' });
+            return;
+          }
+          return CC.sb.from('cc_shops_public').select('id,name,city,state,logo_url').in('id', ids)
+            .then(function (sr) {
+              if (sr.error) throw sr.error;
+              var byId = {};
+              (sr.data || []).forEach(function (s) { byId[s.id] = s; });
+              panel.innerHTML = '<div class="cc5-saved-list">' + ids.map(function (id) {
+                var s = byId[id];
+                return s ? shopRow(s, false, null, true)
+                  : '<div class="cc5-saved-row"><div class="cc5-saved-info"><h3 class="cc-muted">A followed shop is no longer available</h3></div>' +
+                    '<button type="button" class="cc-btn cc-btn-sm cc-btn-ghost" data-cc5p-unfollow="' + CC.esc(id) + '">Unfollow</button></div>';
+              }).join('') + '</div>';
+            });
+        })
+        .catch(function (err) {
+          panel.innerHTML = CC.states.error({ title: 'Could not load followed shops', body: (err && err.message) || '' });
+        });
+    }
+
+    setTab('products');
+  }
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

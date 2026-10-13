@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="CraveCorner app icon">
+<title>CraveCorner app icon</title>
+<rect width="512" height="512" fill="#F45B83"/>
+<defs>
+    <mask id="cc-bite-app" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="96">
+      <rect width="96" height="96" fill="#fff"/>
+      <circle cx="56" cy="11" r="8" fill="#000"/>
+      <circle cx="69" cy="13" r="8" fill="#000"/>
+    </mask>
+</defs>
+<g transform="translate(76 76) scale(3.75)">
+  <g mask="url(#cc-bite-app)">
+    <path d="M69.21 26.79A30 30 0 1 0 69.21 69.21" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+  </g>
+</g>
+</svg>

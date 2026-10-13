@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="Explore homemade food near you on CraveCorner — search dishes, shops, and community posts.">
+<title>Explore — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div class="pg-explore-head">
+      <h1>Explore</h1>
+      <p class="cc-lead">Search homemade dishes, local shops, and community posts — all in one place.</p>
+    </div>
+
+    <div class="pg-toolbar">
+      <div class="pg-search-row">
+        <form id="pg-search-form" class="cc-search" role="search" aria-label="Search food, shops, and posts">
+          <span data-icon="search" aria-hidden="true"></span>
+          <input class="cc-input" id="pg-q" type="search" name="q" autocomplete="off"
+                 placeholder="Try &ldquo;tacos&rdquo;, &ldquo;sourdough&rdquo;, or a city&hellip;"
+                 aria-label="Search food, shop, category, city, or ZIP">
+        </form>
+        <button type="button" class="pg-location-btn" id="pg-location-btn">
+          <span data-icon="location" aria-hidden="true"></span>
+          <span id="pg-location-label">Set location</span>
+        </button>
+      </div>
+
+      <div class="pg-filter-block">
+        <div class="pg-filter-label" id="pg-price-label">Price</div>
+        <div class="cc-pill-row" role="group" aria-labelledby="pg-price-label" id="pg-price-pills">
+          <button type="button" class="cc-pill" data-price="$" aria-pressed="false">$ <span class="pg-sr-only">under $10</span><span aria-hidden="true">&nbsp;under $10</span></button>
+          <button type="button" class="cc-pill" data-price="$$" aria-pressed="false">$$ <span aria-hidden="true">&nbsp;$10&ndash;$25</span><span class="pg-sr-only">$10 to $25</span></button>
+          <button type="button" class="cc-pill" data-price="$$$" aria-pressed="false">$$$ <span aria-hidden="true">&nbsp;$25+</span><span class="pg-sr-only">over $25</span></button>
+        </div>
+      </div>
+
+      <div class="pg-filter-block">
+        <div class="pg-filter-label" id="pg-cat-label">Category</div>
+        <div class="cc-pill-row" role="group" aria-labelledby="pg-cat-label" id="pg-cat-pills"></div>
+      </div>
+
+      <div class="pg-filter-block">
+        <div class="pg-filter-label" id="pg-avail-label">Availability</div>
+        <div class="cc-pill-row" role="group" aria-labelledby="pg-avail-label" id="pg-avail-pills">
+          <button type="button" class="cc-pill" data-avail="ready" aria-pressed="false">Ready Today</button>
+          <button type="button" class="cc-pill" data-avail="order" aria-pressed="false">Made to Order</button>
+        </div>
+      </div>
+
+      <div class="pg-filter-block">
+        <div class="pg-filter-label" id="pg-fulfill-label">How you get it</div>
+        <div class="cc-pill-row" role="group" aria-labelledby="pg-fulfill-label" id="pg-fulfill-pills">
+          <button type="button" class="cc-pill" data-fulfill="pickup" aria-pressed="false">Pickup</button>
+          <button type="button" class="cc-pill" data-fulfill="delivery" aria-pressed="false">Delivery</button>
+          <button type="button" class="cc-pill" data-fulfill="shipping" aria-pressed="false">Shipping</button>
+        </div>
+      </div>
+
+      <div class="pg-toolbar-meta">
+        <div class="pg-meta-group">
+          <label class="cc-label" for="pg-radius">Distance</label>
+          <select class="cc-select" id="pg-radius">
+            <option value="5">5 mi</option>
+            <option value="10">10 mi</option>
+            <option value="25" selected>25 mi</option>
+            <option value="50">50 mi</option>
+          </select>
+        </div>
+        <div class="pg-meta-group">
+          <label class="cc-label" for="pg-sort">Sort</label>
+          <select class="cc-select" id="pg-sort">
+            <option value="recommended" selected>Recommended</option>
+            <option value="price-asc">Price: low to high</option>
+            <option value="price-desc">Price: high to low</option>
+            <option value="newest">Newest</option>
+          </select>
+          <div class="pg-view-toggle" role="group" aria-label="Results layout">
+            <button type="button" id="pg-view-grid" aria-pressed="true">Grid</button>
+            <button type="button" id="pg-view-list" aria-pressed="false">List</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="cc-caption pg-radius-note">Preview note: sample listings carry city-level locations, so distance filters by matching city. Real mile-radius search arrives with live listings.</p>
+    </div>
+
+    <p class="pg-sr-only" role="status" id="pg-status"></p>
+    <div class="pg-results pg-view-grid" id="pg-results" aria-label="Search results"></div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<!-- STAGE 4: Supabase client (frontend contract: before app.js) -->
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<!-- STAGE 5: community + cravings helpers (no-ops when not live; needed for CC5.postCard) -->
+<script src="assets/js/cc-community.js"></script>
+<script src="assets/js/cc-cravings.js"></script>
+<script src="assets/js/app.js"></script>
+<!-- STAGE 4: notification bell badge + dropdown (hooks the header; app.js untouched) -->
+<script src="assets/js/cc-notify.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var main = document.getElementById('cc-main');
+  function fatal(msg) {
+    main.innerHTML = '<div class="cc-container cc-section"><div class="cc-alert cc-alert-danger" role="alert">' + msg + '</div></div>';
+  }
+  if (!window.CC || !window.CC_DEMO) {
+    fatal('CraveCorner could not load. Check your connection and reload the page.');
+    return;
+  }
+  var CC = window.CC;
+  var D = window.CC_DEMO;
+
+  /* Shared chrome (header/footer/demo banner) is rendered by
+     assets/js/app.js on DOMContentLoaded — set the active nav
+     before that fires. */
+  window.CC_ACTIVE_NAV = 'explore';
+
+  /* Replace [data-icon] slots with real Lucide-style icons */
+  var slots = document.querySelectorAll('[data-icon]');
+  for (var si = 0; si < slots.length; si++) {
+    (function (el) {
+      var tmp = document.createElement('span');
+      tmp.innerHTML = CC.icon(el.getAttribute('data-icon'));
+      if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+    })(slots[si]);
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  var state = {
+    q: params.get('q') || '',
+    cat: '',
+    price: '',        // '', '$', '$$', '$$$'
+    avail: '',        // '', 'ready', 'order'
+    fulfill: [],      // subset of pickup/delivery/shipping
+    sort: 'recommended',
+    view: 'grid'
+  };
+
+  /* ---- Data layer ---------------------------------------------------
+     DATA holds demo-shaped rows in BOTH modes: sample rows from
+     window.CC_DEMO when the backend is down, live Supabase rows mapped
+     through CC.adaptShop/CC.adaptProduct when it is live. The filter /
+     sort / render code below never reads window.CC_DEMO directly. */
+  var DATA = { products: [], shops: [], posts: [], categories: [] };
+  var LIVE = false;
+  var liveCoords = null;      /* {lat,lng} for the active location (live mode) */
+  var coordCacheKey = '';     /* re-resolve coords when the location changes */
+  var shopById = {};          /* adapted shop rows by id (both modes) */
+  var rawShopById = {};       /* live cc_shops_public rows (for CC5.postCard) */
+  var catNameBySlug = {};
+  var catIdToSlug = {};
+  var shopIdToSlugs = {};     /* live: shop id -> [category slug] (from products) */
+  var cats = [];
+
+  function fillDemo() {
+    var i;
+    DATA.products = D.PRODUCTS || [];
+    DATA.shops = D.SHOPS || [];
+    DATA.posts = D.POSTS || [];
+    DATA.categories = [];
+    for (i = 0; i < (D.CATEGORIES || []).length; i++) {
+      DATA.categories.push({ slug: D.CATEGORIES[i].slug, name: D.CATEGORIES[i].name });
+    }
+  }
+
+  function mustOk(r) {
+    if (r && r.error) {
+      var e = new Error((r.error && r.error.message) || 'Database error');
+      e.ccDbError = true;
+      throw e;
+    }
+    return (r && r.data) || [];
+  }
+
+  /* Live fetch: categories, shops, products (+ cover images), posts —
+     in parallel. Any query failure throws; callers show CC.states.error
+     (never a demo fallback — that would misrepresent sample shops as real). */
+  function loadLive() {
+    var sb = CC.sb;
+    return Promise.all([
+      sb.from('cc_categories').select('id,slug,name,description,sort_order')
+        .order('sort_order').then(mustOk),
+      CC.shopsPublic(function (qb) {
+        return qb.order('created_at', { ascending: false }).limit(200);
+      }).then(mustOk),
+      sb.from('cc_products')
+        .select('id,shop_id,category_id,name,description,price_cents,portion,fulfillment,lead_time_days,status,created_at')
+        .eq('status', 'active').order('created_at', { ascending: false }).limit(200).then(mustOk),
+      sb.from('cc_posts')
+        .select('id,shop_id,body,photos,kind,like_count,created_at')
+        .order('created_at', { ascending: false }).limit(50).then(mustOk)
+    ]).then(function (rs) {
+      var catRows = rs[0], shopRows = rs[1], prodRows = rs[2], postRows = rs[3];
+      var ci;
+      DATA.categories = [];
+      for (ci = 0; ci < catRows.length; ci++) {
+        DATA.categories.push({ slug: catRows[ci].slug, name: catRows[ci].name });
+        catIdToSlug[catRows[ci].id] = catRows[ci].slug;
+      }
+      DATA.shops = shopRows.map(CC.adaptShop);
+      shopRows.forEach(function (r) { rawShopById[r.id] = r; });
+      DATA.posts = postRows;
+
+      var prodIds = prodRows.map(function (p) { return p.id; });
+      var coverQ = prodIds.length
+        ? sb.from('cc_product_images').select('product_id,storage_path,is_cover,position')
+            .in('product_id', prodIds).then(mustOk)
+        : Promise.resolve([]);
+      return coverQ.then(function (imgRows) {
+        var byProd = {}, pid, pi;
+        for (pi = 0; pi < imgRows.length; pi++) {
+          pid = imgRows[pi].product_id;
+          (byProd[pid] = byProd[pid] || []).push(imgRows[pi]);
+        }
+        var best = {};
+        for (pid in byProd) {
+          if (!Object.prototype.hasOwnProperty.call(byProd, pid)) continue;
+          var arr = byProd[pid].slice().sort(function (a, b) {
+            var ca = a.is_cover ? 1 : 0, cb = b.is_cover ? 1 : 0;
+            if (cb !== ca) return cb - ca;
+            return (a.position || 0) - (b.position || 0);
+          });
+          best[pid] = arr[0];
+        }
+        DATA.products = prodRows.map(function (p) {
+          var shopRow = rawShopById[p.shop_id] || {};
+          var cover = best[p.id];
+          var ap = CC.adaptProduct(p, shopRow,
+            cover ? CC.imgUrl('cc-product-images', cover.storage_path) : null);
+          var pslug = catIdToSlug[p.category_id] || '';
+          ap.category = pslug;
+          ap._createdAt = p.created_at;
+          var arr2 = shopIdToSlugs[p.shop_id] || (shopIdToSlugs[p.shop_id] = []);
+          if (pslug && arr2.indexOf(pslug) === -1) arr2.push(pslug);
+          return ap;
+        });
+      });
+    });
+  }
+
+  /* Called once the data layer is filled (live or demo): rebuild lookups,
+     paint pills, hide the city-level disclaimer when live, resolve the
+     location's coordinates (live only), then render. */
+  function afterData() {
+    var i;
+    shopById = {};
+    for (i = 0; i < DATA.shops.length; i++) shopById[DATA.shops[i].id] = DATA.shops[i];
+    cats = DATA.categories;
+    catNameBySlug = {};
+    for (i = 0; i < cats.length; i++) catNameBySlug[cats[i].slug] = cats[i].name;
+    if (LIVE) {
+      var note = document.querySelector('.pg-radius-note');
+      if (note) note.style.display = 'none';
+    }
+    renderCatPills();
+    syncRadiusSelect();
+    return resolveCoords().then(function () { render(); });
+  }
+
+  function norm(s) { return String(s == null ? '' : s).toLowerCase(); }
+  function badgeOf(p) { return norm(p.badge); }
+  function isSoldOut(p) { return /sold\s*-?\s*out/.test(badgeOf(p)); }
+  function isReady(p) { return !isSoldOut(p) && /(ready|today)/.test(badgeOf(p)); }
+  function isMadeToOrder(p) { return !isSoldOut(p) && /(made|pre-?\s?order|to order)/.test(badgeOf(p)); }
+  function isNewP(p) { return /new/.test(badgeOf(p)) && !isSoldOut(p); }
+  function fulfillOf(p) {
+    var out = [], f = p.fulfillment || [], j;
+    for (j = 0; j < f.length; j++) out.push(norm(f[j]));
+    return out;
+  }
+  function catMatches(pCat, slug) {
+    var pc = norm(pCat), s = norm(slug);
+    return pc === s || pc === norm(catNameBySlug[s] || '');
+  }
+
+  /* Location comes from the shared CC.location store (set via the header/location modal) */
+  function locObj() {
+    try { return (CC.location && CC.location.get()) || null; }
+    catch (e) { return null; }
+  }
+  function locLabel() {
+    var l = locObj();
+    if (!l) return '';
+    return l.label || l.city || '';
+  }
+  /* Active when the user saved a city or ZIP (label-only locations don't filter). */
+  function locActive() {
+    var l = locObj();
+    return (l && (l.city || l.zip)) ? l : null;
+  }
+  function cityMatches(pCity, loc) {
+    var c = norm(pCity);
+    var l = norm((loc && (loc.label || loc.city || loc.zip)) || '');
+    return !!(c && l && (l.indexOf(c) !== -1 || c.indexOf(l) !== -1));
+  }
+  /* Live mode: resolve the active location's coordinates ONCE (cached per
+     location; re-resolved on cc:location-changed). */
+  function resolveCoords() {
+    var loc = locActive();
+    if (!LIVE || !loc) { liveCoords = null; coordCacheKey = ''; return Promise.resolve(null); }
+    var key = [loc.label, loc.zip, loc.city, loc.state].join('|');
+    if (key === coordCacheKey) return Promise.resolve(liveCoords);
+    return CC.resolveLocCoords(loc).then(function (pt) {
+      coordCacheKey = key;
+      liveCoords = pt;
+      return pt;
+    });
+  }
+  function syncRadiusSelect() {
+    var sel = document.getElementById('pg-radius');
+    var l = locObj();
+    if (sel && l && l.radius) sel.value = String(l.radius);
+  }
+
+  function words(q) { return norm(q).split(/\s+/).filter(Boolean); }
+  function hayAll(parts) { return parts.map(norm).join(' '); }
+  function matchesAll(hay, q) {
+    var ws = words(q), w;
+    for (w = 0; w < ws.length; w++) { if (hay.indexOf(ws[w]) === -1) return false; }
+    return true;
+  }
+
+  function shopHasCat(s, slug) {
+    if (LIVE) {
+      var arr = shopIdToSlugs[s.id] || [], j;
+      for (j = 0; j < arr.length; j++) { if (catMatches(arr[j], slug)) return true; }
+      return false;
+    }
+    var scats = (s.categories || []).map(norm), ok = false, j2;
+    for (j2 = 0; j2 < scats.length; j2++) { if (catMatches(scats[j2], slug)) { ok = true; break; } }
+    return ok;
+  }
+
+  function filterProducts(skipLoc) {
+    var loc = skipLoc ? null : locActive();
+    return DATA.products.filter(function (p) {
+      if (state.q) {
+        var shop = shopById[p.shopId];
+        if (!matchesAll(hayAll([p.name, p.description, p.city, p.state, catNameBySlug[p.category] || p.category, shop && shop.name, p._shopName]), state.q)) return false;
+      }
+      if (state.cat && !catMatches(p.category, state.cat)) return false;
+      if (state.price === '$' && !(p.price < 10)) return false;
+      if (state.price === '$$' && !(p.price >= 10 && p.price <= 25)) return false;
+      if (state.price === '$$$' && !(p.price > 25)) return false;
+      if (state.avail === 'ready' && !isReady(p)) return false;
+      if (state.avail === 'order' && !isMadeToOrder(p)) return false;
+      var f = fulfillOf(p), k;
+      for (k = 0; k < state.fulfill.length; k++) { if (f.indexOf(state.fulfill[k]) === -1) return false; }
+      /* Demo/preview: city-substring match (live mode filters by radius below instead). */
+      if (!LIVE && loc && !cityMatches(p.city, loc)) return false;
+      return true;
+    });
+  }
+
+  function filterShops(skipLoc) {
+    var loc = skipLoc ? null : locActive();
+    return DATA.shops.filter(function (s) {
+      if (state.q) {
+        var catNames = (LIVE ? (shopIdToSlugs[s.id] || []) : (s.categories || [])).map(function (c) { return catNameBySlug[c] || c; }).join(' ');
+        if (!matchesAll(hayAll([s.name, s.city, s.state, s.blurb, catNames]), state.q)) return false;
+      }
+      if (state.cat && !shopHasCat(s, state.cat)) return false;
+      /* Demo/preview: city-substring match (live mode filters by radius below instead). */
+      if (!LIVE && loc && !cityMatches(s.city, loc)) return false;
+      return true;
+    });
+  }
+
+  function filterPosts(skipLoc) {
+    var loc = skipLoc ? null : locActive();
+    return DATA.posts.filter(function (po) {
+      var shop = shopById[po.shop_id || po.shopId];
+      if (state.q) {
+        if (!matchesAll(hayAll([po.caption, po.body, shop && shop.name, shop && shop.city, shop && shop.state]), state.q)) return false;
+      }
+      /* Demo/preview: city-substring match (live mode filters by radius below instead). */
+      if (!LIVE && loc && shop && !cityMatches(shop.city, loc)) return false;
+      return true;
+    });
+  }
+
+  /* Live mode: enforce the saved mile-radius via CC.filterNearby on shops,
+     then keep only products/posts whose shop passed. No-op in demo mode. */
+  function applyNearby(products, shops, posts) {
+    var loc = locActive();
+    if (!LIVE || !loc) return { products: products, shops: shops, posts: posts };
+    var ok = {};
+    CC.filterNearby(DATA.shops, loc, liveCoords).forEach(function (s) { ok[s.id] = true; });
+    return {
+      products: products.filter(function (p) { return !!ok[p.shopId]; }),
+      shops: shops.filter(function (s) { return !!ok[s.id]; }),
+      posts: posts.filter(function (po) { return !!ok[po.shop_id]; })
+    };
+  }
+
+  function sortProducts(list) {
+    var arr = list.slice();
+    if (state.sort === 'price-asc') arr.sort(function (a, b) { return a.price - b.price; });
+    else if (state.sort === 'price-desc') arr.sort(function (a, b) { return b.price - a.price; });
+    else if (state.sort === 'newest') arr.sort(function (a, b) {
+      /* Live rows carry _createdAt; demo rows use the "new" badge. */
+      var at = a._createdAt || '', bt = b._createdAt || '';
+      if (at || bt) return bt < at ? -1 : (bt > at ? 1 : 0);
+      return (isNewP(b) ? 0 : 1) - (isNewP(a) ? 0 : 1);
+    });
+    return arr;
+  }
+  function sortShops(list) {
+    var arr = list.slice();
+    if (state.sort === 'newest') arr.sort(function (a, b) { return (b.isNew ? 0 : 1) - (a.isNew ? 0 : 1); });
+    else arr.sort(function (a, b) { return norm(a.name) < norm(b.name) ? -1 : 1; });
+    return arr;
+  }
+
+  var resultsEl = document.getElementById('pg-results');
+  var statusEl = document.getElementById('pg-status');
+  var pending = 0;
+
+  function groupHtml(title, count, cardsHtml, gridClass) {
+    return '<section class="pg-group" aria-label="' + CC.esc(title) + '">' +
+      '<div class="pg-group-head"><h2>' + CC.esc(title) + '</h2>' +
+      '<span class="cc-caption">' + count + (count === 1 ? ' result' : ' results') + '</span></div>' +
+      '<div class="' + gridClass + '">' + cardsHtml + '</div></section>';
+  }
+
+  function render() {
+    updateLocationLabel();
+    var nearby = applyNearby(sortProducts(filterProducts()), sortShops(filterShops()), filterPosts());
+    var products = nearby.products, shops = nearby.shops, posts = nearby.posts;
+    var livePosts = LIVE && !!window.CC5;  /* skip live posts when CC5 isn't loaded */
+    if (LIVE && !window.CC5) posts = [];
+    var total = products.length + shops.length + posts.length;
+
+    if (total === 0) {
+      var emptyTitle = 'No matches found';
+      var emptyBody = 'Try a different search, or clear your filters to browse everything.';
+      /* A location that wipes every group out deserves the honest nearby copy:
+         only use it when dropping the location filter alone brings results back. */
+      if (locActive()) {
+        var loc = locActive();
+        /* Re-check with the location filter dropped: if groups come back,
+           the location (not the query) caused the empty result. */
+        var noLocCount = sortProducts(filterProducts(true)).length +
+          sortShops(filterShops(true)).length +
+          (livePosts || !LIVE ? filterPosts(true).length : 0);
+        if (noLocCount > 0) {
+          var N = String(parseInt(loc.radius, 10) || 25);
+          emptyTitle = 'Nothing nearby';
+          emptyBody = 'No shops within ' + N + ' miles of ' + CC.esc(loc.label || loc.city || 'this area') +
+            ' yet \u2014 try a wider radius.';
+        }
+      }
+      resultsEl.innerHTML = CC.states.empty({
+        icon: 'search',
+        title: emptyTitle,
+        body: emptyBody,
+        actionLabel: 'Clear all filters',
+        actionHref: 'explore.html'
+      });
+      statusEl.textContent = 'No results found.';
+      return;
+    }
+
+    var html = '';
+    if (products.length) {
+      html += groupHtml('Products', products.length,
+        products.map(function (p) { return CC.productCard(p, rawShopById[p.shopId]); }).join(''), 'cc-grid-products');
+    }
+    if (shops.length) {
+      html += groupHtml('Shops', shops.length,
+        shops.map(function (s) { return CC.shopCard(s); }).join(''), 'cc-grid-shops');
+    }
+    if (posts.length) {
+      var postCards = livePosts
+        ? posts.map(function (po) { return window.CC5.postCard(po, rawShopById[po.shop_id] || {}, {}); }).join('')
+        : posts.map(function (po) { return CC.postCard(po); }).join('');
+      html += groupHtml('Community posts', posts.length, postCards, 'pg-posts');
+    }
+    resultsEl.innerHTML = html;
+    if (livePosts && window.CC5.bindActions) window.CC5.bindActions(resultsEl);
+    statusEl.textContent = total + (total === 1 ? ' result' : ' results') + ' found.';
+  }
+
+  function scheduleRender() {
+    var my = ++pending;
+    resultsEl.innerHTML = CC.states.skeletonCards(6);
+    window.setTimeout(function () { if (my === pending) render(); }, 400);
+  }
+
+  /* -- Category pills (built from demo categories) -- */
+  var catPillsEl = document.getElementById('pg-cat-pills');
+  function renderCatPills() {
+    catPillsEl.innerHTML = cats.map(function (c) {
+      var on = state.cat === c.slug;
+      return '<button type="button" class="cc-pill" data-cat="' + CC.esc(c.slug) + '" aria-pressed="' + on + '">' + CC.esc(c.name) + '</button>';
+    }).join('');
+  }
+  catPillsEl.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-cat]');
+    if (!btn) return;
+    state.cat = (state.cat === btn.getAttribute('data-cat')) ? '' : btn.getAttribute('data-cat');
+    renderCatPills();
+    scheduleRender();
+  });
+
+  function wirePillGroup(elId, attr, onPick) {
+    var el = document.getElementById(elId);
+    el.addEventListener('click', function (e) {
+      var btn = e.target.closest('[' + attr + ']');
+      if (!btn) return;
+      onPick(btn.getAttribute(attr), btn);
+      var btns = el.querySelectorAll('[' + attr + ']'), b;
+      for (b = 0; b < btns.length; b++) {
+        (function (bb) {
+          var active = Array.prototype.indexOf.call(state.fulfill, bb.getAttribute(attr)) !== -1 ||
+            state.price === bb.getAttribute(attr) || state.avail === bb.getAttribute(attr);
+          bb.setAttribute('aria-pressed', active ? 'true' : 'false');
+        })(btns[b]);
+      }
+      scheduleRender();
+    });
+  }
+
+  wirePillGroup('pg-price-pills', 'data-price', function (v) {
+    state.price = (state.price === v) ? '' : v;
+  });
+  wirePillGroup('pg-avail-pills', 'data-avail', function (v) {
+    state.avail = (state.avail === v) ? '' : v;
+  });
+
+  /* Fulfillment pills are multi-select */
+  var fulfillEl = document.getElementById('pg-fulfill-pills');
+  fulfillEl.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-fulfill]');
+    if (!btn) return;
+    var v = btn.getAttribute('data-fulfill');
+    var ix = state.fulfill.indexOf(v);
+    if (ix === -1) state.fulfill.push(v); else state.fulfill.splice(ix, 1);
+    var btns = fulfillEl.querySelectorAll('[data-fulfill]'), b;
+    for (b = 0; b < btns.length; b++) {
+      btns[b].setAttribute('aria-pressed', state.fulfill.indexOf(btns[b].getAttribute('data-fulfill')) !== -1 ? 'true' : 'false');
+    }
+    scheduleRender();
+  });
+
+  /* -- Search (q= param, shareable URL) -- */
+  var form = document.getElementById('pg-search-form');
+  var qInput = document.getElementById('pg-q');
+  qInput.value = state.q;
+  /* If the query looks like a location ("Dallas, TX", "Dallas TX", "75201"),
+     treat it as a location change instead of a food search. Users naturally
+     type cities here expecting the location to update. */
+  var US_STATE_CODES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
+  function parseLocationQuery(q) {
+    q = (q || '').trim();
+    var zipM = q.match(/^(\d{5})$/);
+    if (zipM) return { zip: zipM[1], city: '', state: '', label: 'ZIP ' + zipM[1] };
+    var csM = q.match(/^([A-Za-z][A-Za-z\s.'-]*?)\s*,?\s+([A-Za-z]{2})$/);
+    if (csM) {
+      var city = csM[1].trim(), st = csM[2].toUpperCase();
+      if (city.length >= 2 && US_STATE_CODES.indexOf(st) !== -1) {
+        return { zip: '', city: city, state: st, label: city + ', ' + st };
+      }
+    }
+    return null;
+  }
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var rawQ = qInput.value.trim();
+    var loc = parseLocationQuery(rawQ);
+    if (loc) {
+      /* Location query: update the saved location, clear the food search. */
+      var cur = (CC.location && CC.location.get()) || {};
+      cur.label = loc.label; cur.zip = loc.zip; cur.city = loc.city; cur.state = loc.state;
+      if (!cur.radius) cur.radius = '25';
+      CC.location.set(cur);
+      try { document.dispatchEvent(new CustomEvent('cc:location-changed')); } catch (err) {}
+      state.q = '';
+      qInput.value = '';
+      var url = new URL(window.location.href);
+      url.searchParams.delete('q');
+      window.history.replaceState(null, '', url.toString());
+      scheduleRender();
+      return;
+    }
+    state.q = rawQ;
+    var url = new URL(window.location.href);
+    if (state.q) url.searchParams.set('q', state.q); else url.searchParams.delete('q');
+    window.history.replaceState(null, '', url.toString());
+    scheduleRender();
+  });
+
+  /* -- Location -- */
+  var locBtn = document.getElementById('pg-location-btn');
+  var locLabelEl = document.getElementById('pg-location-label');
+  function updateLocationLabel() {
+    locLabelEl.textContent = locLabel() || 'Set location';
+  }
+  locBtn.addEventListener('click', function () { CC.openLocationModal(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) updateLocationLabel(); });
+  window.addEventListener('focus', updateLocationLabel);
+
+  /* -- Radius -- */
+  document.getElementById('pg-radius').addEventListener('change', function (e) {
+    if (!locActive()) { CC.openLocationModal(); e.target.value = '25'; return; }
+    if (LIVE) {
+      /* Persist the radius into the saved location so it sticks across visits. */
+      var cur = locObj() || {};
+      cur.radius = e.target.value;
+      CC.location.set(cur);
+    }
+    scheduleRender();
+  });
+
+  /* The location modal fires this when the user saves; re-resolve coords and re-render. */
+  document.addEventListener('cc:location-changed', function () {
+    syncRadiusSelect();
+    updateLocationLabel();
+    resultsEl.innerHTML = CC.states.skeletonCards(6);
+    resolveCoords().then(function () { render(); });
+  });
+
+  /* -- Sort -- */
+  document.getElementById('pg-sort').addEventListener('change', function (e) {
+    state.sort = e.target.value;
+    scheduleRender();
+  });
+
+  /* -- Grid / list toggle -- */
+  var gridBtn = document.getElementById('pg-view-grid');
+  var listBtn = document.getElementById('pg-view-list');
+  function setView(v) {
+    state.view = v;
+    gridBtn.setAttribute('aria-pressed', v === 'grid' ? 'true' : 'false');
+    listBtn.setAttribute('aria-pressed', v === 'list' ? 'true' : 'false');
+    resultsEl.classList.toggle('pg-view-list', v === 'list');
+    resultsEl.classList.toggle('pg-view-grid', v === 'grid');
+  }
+  gridBtn.addEventListener('click', function () { setView('grid'); });
+  listBtn.addEventListener('click', function () { setView('list'); });
+
+  /* -- Boot: paint skeletons, wait for the backend probe, then load data -- */
+  resultsEl.innerHTML = CC.states.skeletonCards(6);
+  CC.ready.then(function (st) {
+    if (st && st.live) {
+      LIVE = true;
+      loadLive().then(function () { afterData(); }).catch(function () {
+        resultsEl.innerHTML = CC.states.error({
+          title: 'Could not load listings',
+          body: 'Check your connection and try again.',
+          retryLabel: 'Reload page'
+        }) + '<div class="cc-empty-actions"><a class="cc-btn cc-btn-secondary" href="explore.html">Explore all food</a></div>';
+        statusEl.textContent = 'Listings failed to load.';
+      });
+    } else {
+      fillDemo();
+      afterData();
+    }
+  }).catch(function () {
+    /* Probe itself blew up: fall back to the demo preview. */
+    fillDemo();
+    afterData();
+  });
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>

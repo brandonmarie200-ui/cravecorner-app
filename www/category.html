@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F45B83">
+<meta name="description" content="Browse a CraveCorner food category — sample homemade listings for design review.">
+<title>Category — CraveCorner</title>
+
+<!-- Fonts: Plus Jakarta Sans (headings) + Inter (body/buttons/forms) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- CraveCorner design system + secondary pages -->
+<link rel="stylesheet" href="assets/css/design-system.css">
+<link rel="stylesheet" href="assets/css/pages.css">
+
+<!-- Favicon: bitten-C mark -->
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body class="cc-has-bottomnav">
+
+<div id="cc-header"></div>
+
+<main id="cc-main">
+  <div class="cc-container">
+    <div class="pg-head">
+      <a class="pg-back" href="explore.html"><span data-icon="search" aria-hidden="true"></span>Back to Explore</a>
+      <div id="pg-cat-hero-slot"></div>
+    </div>
+    <div id="pg-cat-results" aria-label="Category listings"></div>
+  </div>
+</main>
+
+<div id="cc-footer"></div>
+
+<script src="assets/js/icons.js"></script>
+<script src="js/data/demo.js"></script>
+<!-- STAGE 4: Supabase client (frontend contract: before app.js) -->
+<script src="assets/js/supabase.min.js"></script>
+<script src="assets/js/cc.js"></script>
+<script src="assets/js/app.js"></script>
+<!-- STAGE 4: notification bell badge + dropdown (hooks the header; app.js untouched) -->
+<script src="assets/js/cc-notify.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var main = document.getElementById('cc-main');
+  function fatal(msg) {
+    main.innerHTML = '<div class="cc-container cc-section"><div class="cc-alert cc-alert-danger" role="alert">' + msg + '</div></div>';
+  }
+  if (!window.CC || !window.CC_DEMO) {
+    fatal('CraveCorner could not load. Check your connection and reload the page.');
+    return;
+  }
+  var CC = window.CC;
+  var D = window.CC_DEMO;
+
+  /* Shared chrome (header/footer/demo banner) is rendered by
+     assets/js/app.js on DOMContentLoaded — set the active nav
+     before that fires. */
+  window.CC_ACTIVE_NAV = 'explore';
+
+  var slots = document.querySelectorAll('[data-icon]');
+  for (var si = 0; si < slots.length; si++) {
+    (function (el) {
+      var tmp = document.createElement('span');
+      tmp.innerHTML = CC.icon(el.getAttribute('data-icon'));
+      if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el);
+    })(slots[si]);
+  }
+
+  function norm(s) { return String(s == null ? '' : s).toLowerCase(); }
+
+  var slug = new URLSearchParams(window.location.search).get('cat') || '';
+
+  var heroSlot = document.getElementById('pg-cat-hero-slot');
+  var resultsEl = document.getElementById('pg-cat-results');
+
+  function notFoundBlock(preview) {
+    document.title = 'Category not found — CraveCorner';
+    heroSlot.innerHTML = '';
+    resultsEl.innerHTML = CC.states.error({
+      title: 'Category not found',
+      body: 'That link looks outdated — this category does not exist' + (preview ? ' in the preview.' : '.'),
+      retryLabel: 'Reload page'
+    }) + '<div class="cc-empty-actions"><a class="cc-btn cc-btn-secondary" href="explore.html">Explore all food</a></div>';
+  }
+
+  /* Byte-for-byte the original preview behavior (backend down). */
+  function demoBranch() {
+    var cat = null, i;
+    var cats = D.CATEGORIES || [];
+    for (i = 0; i < cats.length; i++) {
+      if (norm(cats[i].slug) === norm(slug)) { cat = cats[i]; break; }
+    }
+
+    if (!cat) { notFoundBlock(true); return; }
+
+    document.title = cat.name + ' — CraveCorner';
+
+    heroSlot.innerHTML =
+      '<div class="pg-cat-hero">' +
+        '<img src="' + CC.img(cat.img) + '" alt="">' +
+        '<div class="pg-cat-hero-content">' +
+          '<h1>' + CC.esc(cat.name) + '</h1>' +
+          '<p>' + CC.esc(cat.blurb || '') + '</p>' +
+          '<span class="cc-badge cc-badge-warn">Sample listings</span>' +
+        '</div>' +
+      '</div>';
+
+    var list = (D.PRODUCTS || []).filter(function (p) {
+      var pc = norm(p.category);
+      return pc === norm(cat.slug) || pc === norm(cat.name);
+    });
+
+    if (!list.length) {
+      resultsEl.innerHTML = '<div class="cc-section">' + CC.states.empty({
+        icon: 'search',
+        title: 'No products yet',
+        body: 'Nothing is listed in ' + cat.name + ' in this preview yet.',
+        actionLabel: 'Explore all food',
+        actionHref: 'explore.html'
+      }) + '</div>';
+      return;
+    }
+
+    resultsEl.innerHTML =
+      '<div class="cc-section"><div class="cc-grid-products">' +
+      list.map(function (p) { return CC.productCard(p); }).join('') +
+      '</div></div>';
+  }
+
+  /* Hero images per category slug (from js/data/demo.js CATEGORIES). */
+  var CAT_IMG = {
+    'desserts': 'cat-desserts.jpg',
+    'coffee': 'cat-coffee.jpg',
+    'homemade-meals': 'cat-meals.jpg',
+    'snacks': 'cat-snacks.jpg',
+    'baked-goods': 'cat-baked.jpg',
+    'drinks': 'cat-drinks.jpg',
+    'party-foods': 'cat-party.jpg',
+    'candy-treats': 'cat-candy.jpg',
+    'breakfast': 'cat-breakfast.jpg',
+    'catering': 'cat-catering.jpg',
+    'frozen-treats': 'cat-frozen.jpg',
+    'other-food': 'cat-other.jpg'
+  };
+
+  function locObj() {
+    try { return (CC.location && CC.location.get()) || null; }
+    catch (e) { return null; }
+  }
+
+  function liveBranch() {
+    var sb = CC.sb;
+    sb.from('cc_categories').select('id,slug,name,description')
+      .eq('slug', slug).limit(1).then(function (r) {
+        if (r.error) throw r.error;
+        var rows = r.data || [];
+        if (!rows.length) { notFoundBlock(false); return; }
+        var cat = rows[0];
+        document.title = cat.name + ' — CraveCorner';
+        heroSlot.innerHTML =
+          '<div class="pg-cat-hero">' +
+            '<img src="' + CC.img(CAT_IMG[cat.slug] || 'placeholder-food.jpg') + '" alt="">' +
+            '<div class="pg-cat-hero-content">' +
+              '<h1>' + CC.esc(cat.name) + '</h1>' +
+              '<p>' + CC.esc(cat.description || '') + '</p>' +
+            '</div>' +
+          '</div>';
+        return sb.from('cc_products')
+          .select('id,shop_id,category_id,name,description,price_cents,portion,fulfillment,lead_time_days,status,created_at')
+          .eq('category_id', cat.id).eq('status', 'active')
+          .order('created_at', { ascending: false }).limit(200)
+          .then(function (pr) {
+            if (pr.error) throw pr.error;
+            renderLiveProducts(cat, pr.data || []);
+          });
+      }).catch(function () {
+        resultsEl.innerHTML = CC.states.error({
+          title: 'Could not load this category',
+          body: 'Check your connection and try again.',
+          retryLabel: 'Reload page'
+        }) + '<div class="cc-empty-actions"><a class="cc-btn cc-btn-secondary" href="explore.html">Explore all food</a></div>';
+      });
+  }
+
+  function renderLiveProducts(cat, prodRows) {
+    var sb = CC.sb;
+    var prodIds = prodRows.map(function (p) { return p.id; });
+    var coverQ = prodIds.length
+      ? sb.from('cc_product_images').select('product_id,storage_path,is_cover,position')
+          .in('product_id', prodIds)
+      : Promise.resolve({ data: [] });
+    coverQ.then(function (ir) {
+      if (ir.error) throw ir.error;
+      var imgRows = ir.data || [];
+      var byProd = {}, pid, pi;
+      for (pi = 0; pi < imgRows.length; pi++) {
+        pid = imgRows[pi].product_id;
+        (byProd[pid] = byProd[pid] || []).push(imgRows[pi]);
+      }
+      var best = {};
+      for (pid in byProd) {
+        if (!Object.prototype.hasOwnProperty.call(byProd, pid)) continue;
+        var arr = byProd[pid].slice().sort(function (a, b) {
+          var ca = a.is_cover ? 1 : 0, cb = b.is_cover ? 1 : 0;
+          if (cb !== ca) return cb - ca;
+          return (a.position || 0) - (b.position || 0);
+        });
+        best[pid] = arr[0];
+      }
+      var shopIds = [];
+      prodRows.forEach(function (p) { if (shopIds.indexOf(p.shop_id) === -1) shopIds.push(p.shop_id); });
+      var shopQ = shopIds.length
+        ? CC.shopsPublic(function (qb) { return qb.in('id', shopIds); })
+        : Promise.resolve({ data: [] });
+      return shopQ.then(function (sr) {
+        if (sr.error) throw sr.error;
+        var rawById = {};
+        (sr.data || []).forEach(function (s) { rawById[s.id] = s; });
+        var adapted = prodRows.map(function (p) {
+          var shopRow = rawById[p.shop_id] || {};
+          var cover = best[p.id];
+          return {
+            card: CC.adaptProduct(p, shopRow,
+              cover ? CC.imgUrl('cc-product-images', cover.storage_path) : null),
+            shopRow: shopRow
+          };
+        });
+        applyLiveNearby(adapted).then(function (near) {
+          paintLiveResults(cat, near);
+        });
+      });
+    }).catch(function () {
+      resultsEl.innerHTML = CC.states.error({
+        title: 'Could not load this category',
+        body: 'Check your connection and try again.',
+        retryLabel: 'Reload page'
+      }) + '<div class="cc-empty-actions"><a class="cc-btn cc-btn-secondary" href="explore.html">Explore all food</a></div>';
+    });
+  }
+
+  /* Live: enforce the saved mile-radius using each product's shop
+     coordinates (via CC.filterNearby on pseudo-shop rows). */
+  function applyLiveNearby(adapted) {
+    var loc = locObj();
+    if (!loc || (!loc.city && !loc.zip)) return Promise.resolve({ list: adapted, loc: null });
+    return CC.resolveLocCoords(loc).then(function (coords) {
+      var pseudo = adapted.map(function (x) {
+        return { id: x.card.id, latitude: x.card._shopLat, longitude: x.card._shopLng,
+                 city: x.card.city, state: x.card.state };
+      });
+      var ok = {};
+      CC.filterNearby(pseudo, loc, coords).forEach(function (s) { ok[s.id] = true; });
+      return { list: adapted.filter(function (x) { return !!ok[x.card.id]; }), loc: loc };
+    });
+  }
+
+  function paintLiveResults(cat, near) {
+    var list = near.list, loc = near.loc;
+    if (!list.length) {
+      var body = 'Nothing is listed in ' + cat.name + ' yet.';
+      if (loc) {
+        var N = String(parseInt(loc.radius, 10) || 25);
+        body = 'No products within ' + N + ' miles of ' + CC.esc(loc.label || loc.city || 'this area') + ' yet.';
+      }
+      resultsEl.innerHTML = '<div class="cc-section">' + CC.states.empty({
+        icon: 'search',
+        title: 'No products yet',
+        body: body,
+        actionLabel: 'Explore all food',
+        actionHref: 'explore.html'
+      }) + '</div>';
+      return;
+    }
+    resultsEl.innerHTML =
+      '<div class="cc-section"><div class="cc-grid-products">' +
+      list.map(function (x) { return CC.productCard(x.card, x.shopRow); }).join('') +
+      '</div></div>';
+  }
+
+  /* -- Boot -- */
+  resultsEl.innerHTML = CC.states.skeletonCards(6);
+  CC.ready.then(function (st) {
+    if (st && st.live) liveBranch(); else demoBranch();
+  }).catch(function () {
+    /* Probe rejected (backend answered with an error): preview fallback. */
+    demoBranch();
+  });
+  document.addEventListener('cc:location-changed', function () {
+    if (CC.live) {
+      resultsEl.innerHTML = CC.states.skeletonCards(6);
+      liveBranch();
+    } else demoBranch();
+  });
+})();
+</script>
+<script src="js/native-bridge.js"></script>
+</body>
+</html>
